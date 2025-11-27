@@ -37,8 +37,8 @@ if [ ! -d "$VENV" ]; then
     echo "[+] Installing Home Assistant..."
     pip install homeassistant
 
-    echo "[+] Freezing requirements.txt..."
-    pip freeze > "$BASE_DIR/requirements.txt"
+    echo "[+] Installing project dependencies..."
+    pip install -r "$BASE_DIR/requirements.txt"
 else
     echo "[+] Virtual environment already exists."
 fi
