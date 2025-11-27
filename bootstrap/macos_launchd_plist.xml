@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+  <dict>
+    <key>Label</key>
+    <string>com.aaron.homeassistant</string>
+
+    <key>ProgramArguments</key>
+    <array>
+      <string>/Users/aaronbastian/home-assistant-server/bootstrap/start_ha.sh</string>
+    </array>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>KeepAlive</key>
+    <true/>
+
+    <key>StandardOutPath</key>
+    <string>/Users/aaronbastian/home-assistant-server/runtime/ha-out.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>/Users/aaronbastian/home-assistant-server/runtime/ha-err.log</string>
+  </dict>
+</plist>
