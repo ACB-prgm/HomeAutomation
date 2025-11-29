@@ -20,7 +20,7 @@ else
 fi
 
 # 2. Ensure we are using the correct Python interpreter
-PYTHON_BIN="/opt/homebrew/bin/python3.12"
+PYTHON_BIN="/usr/local/bin/python3.12"
 
 if [ ! -x "$PYTHON_BIN" ]; then
     echo "[ERROR] Python 3.12 not found at $PYTHON_BIN."
