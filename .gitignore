@@ -1,6 +1,8 @@
-runtime/venv/
 __pycache__/
+.venv/
+ha_config/
 *.log
+
 # macOS metadata files
 .DS_Store
 .DS_Store?
