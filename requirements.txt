@@ -1,4 +1,5 @@
 numpy
 pandas
 requests
+paho-mqtt
 flask

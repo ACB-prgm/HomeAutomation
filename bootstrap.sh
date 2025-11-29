@@ -11,12 +11,21 @@ PLIST_DEST="$LAUNCH_AGENTS/com.aaron.homeassistant.plist"
 
 echo "=== Home Assistant Bootstrap ==="
 
-# 1. Ensure Homebrew Python is installed
-if ! command -v python3 >/dev/null 2>&1; then
-    echo "[+] Installing Python3 via Homebrew..."
-    brew install python@3
+# 1. Ensure Homebrew Python 3.12 is installed
+if ! brew list python@3.12 >/dev/null 2>&1; then
+    echo "[+] Installing Python 3.12 via Homebrew..."
+    brew install python@3.12
 else
-    echo "[+] Python3 already installed."
+    echo "[+] Homebrew Python 3.12 already installed."
+fi
+
+# 2. Ensure we are using the correct Python interpreter
+PYTHON_BIN="/opt/homebrew/bin/python3.12"
+
+if [ ! -x "$PYTHON_BIN" ]; then
+    echo "[ERROR] Python 3.12 not found at $PYTHON_BIN."
+    echo "Make sure Homebrew is installed and python@3.12 is installed correctly."
+    exit 1
 fi
 
 # 2. Ensure runtime directory exists
@@ -27,8 +36,10 @@ fi
 
 # 3. Create venv if missing
 if [ ! -d "$VENV" ]; then
-    echo "[+] Creating Python venv..."
-    python3 -m venv "$VENV"
+    echo "[+] Creating Python 3.12 venv..."
+    "$PYTHON_BIN" -m venv "$VENV"
+
+    # Activate venv
     source "$VENV/bin/activate"
 
     echo "[+] Upgrading pip + wheel + setuptools..."
@@ -42,6 +53,7 @@ if [ ! -d "$VENV" ]; then
 else
     echo "[+] Virtual environment already exists."
 fi
+
 
 # 4. Install launchd plist
 if [ ! -f "$PLIST_DEST" ]; then
