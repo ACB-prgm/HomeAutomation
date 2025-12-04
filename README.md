@@ -1,6 +1,7 @@
 # Home Automation
 
 ## Directory Structure
+```
 HomeAutomation/
 ├── bootstrap.sh              # Sets up .venv, installs deps, starts server (optional)
 ├── requirements.txt          # Python deps for server + tools (no HA here now)
@@ -68,3 +69,4 @@ HomeAutomation/
     ├── test_routing.py
     ├── test_mqtt_bus.py
     └── test_ha_client.py
+```
