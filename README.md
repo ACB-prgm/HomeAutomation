@@ -1,125 +1,70 @@
-# Home Assistant Server (macOS server)
-
-This repository contains the full environment setup for running **Home Assistant in a Python virtual environment** on a macOS server.  
-The goal is to provide a clean, reproducible, version-controlled foundation for a local smart-home orchestration system and the future custom assistant stack.
-
----
+# Home Automation
 
 ## Directory Structure
-
-```
-home-assistant-server/
-├── bootstrap.sh                # One-step setup script for Home Assistant
-├── bootstrap/
-│   └── macos_launchd_plist.xml # Launchd config for autostart
-├── runtime/                    # Created automatically on first run
-│   └── venv/                  # Python virtual environment (not committed)
-├── requirements.txt            # Generated after bootstrap installs HA
+HomeAutomation/
+├── bootstrap.sh              # Sets up .venv, installs deps, starts server (optional)
+├── requirements.txt          # Python deps for server + tools (no HA here now)
 ├── .gitignore
-└── README.md
-```
-
-**Key points:**
-
-- `bootstrap.sh` performs all provisioning (Python, venv, HA install, launchd registration).
-- `runtime/` is for machine-local state. Nothing here should be versioned.
-- `requirements.txt` is generated automatically after Home Assistant is installed.
-
----
-
-## Setup Instructions
-
-### 1. Clone the repo on the server
-
-```
-git clone git@github.com:<your-username>/home-assistant-server.git
-cd home-assistant-server
-```
-
-### 2. Run the bootstrap script
-
-```
-./bootstrap.sh
-```
-
-The script will:
-
-- Install Python via Homebrew (if missing)
-- Create the venv under `runtime/venv`
-- Install Home Assistant and freeze dependencies to `requirements.txt`
-- Install the launchd plist for automatic startup
-- Load the launchd agent so Home Assistant begins running
-
----
-
-## Starting Home Assistant Manually
-
-You can manually start HA any time using:
-
-```
-runtime/venv/bin/hass
-```
-
-Once the launchd plist is installed, Home Assistant will start automatically at login.
-
----
-
-## Accessing Home Assistant
-
-After bootstrap, open:
-
-```
-http://<server-ip>:8123
-```
-
-You’ll see the Home Assistant onboarding interface.
-
----
-
-## Updating Home Assistant
-
-To update the pinned version:
-
-1. Activate the venv:
-
-   ```bash
-   source runtime/venv/bin/activate
-   ```
-
-2. Upgrade Home Assistant:
-
-   ```bash
-   pip install --upgrade homeassistant
-   ```
-
-3. Freeze dependencies:
-
-   ```bash
-   pip freeze > requirements.txt
-   ```
-
-Commit the updated `requirements.txt` to version control.
-
----
-
-## Why the Virtual Environment Is Not Committed
-
-The venv contains platform-dependent binaries and macOS-specific wheels.  
-Committing it would break portability, bloat the repo, and cause conflicts.
-
-`requirements.txt` is the source of truth, and `bootstrap.sh` recreates the venv reliably.
-
----
-
-## Next Steps (Phase 2 and beyond)
-
-Future phases will extend this repo to include:
-
-- MQTT broker (Mosquitto) installation and configuration  
-- Assistant orchestration services (TTS, STT, LLM routing)  
-- Satellite provisioning scripts (for Raspberry Pi microphone/speaker screens)  
-- Local APIs for intents, command dispatch, and multi-device coordination  
-
-The structure is designed to scale cleanly as these pieces are added.
-
----
+├── .venv/                    # Python venv (not committed, just here physically)
+│
+├── server/                   # ⬅ Flask (or FastAPI) server entrypoint lives here
+│   ├── __init__.py
+│   ├── app.py                # ⬅ main Flask app: HTTP + health endpoints
+│   ├── config.py             # config loading (env vars, YAML, etc.)
+│   ├── api/
+│   │   ├── __init__.py
+│   │   ├── audio_endpoints.py   # /api/audio/upload, /tts/stream, etc.
+│   │   └── status_endpoints.py  # /api/status, /api/debug
+│   └── wsgi.py               # optional if you ever run under gunicorn/uwsgi
+│
+├── core/                     # ⬅ custom Python modules used by the server
+│   ├── __init__.py
+│   ├── mqtt_bus.py           # MQTT connect, subscribe, publish helpers
+│   ├── routing.py            # intent router (weather/smart-home/time vs LLM)
+│   ├── stt/
+│   │   ├── whisper_backend.py   # wrapper for Whisper or other STT
+│   │   └── apple_stt_backend.py # wrapper for macOS STT if you use it
+│   ├── tts/
+│   │   ├── piper_backend.py     # wrapper for Piper or chosen TTS engine
+│   │   └── apple_tts_backend.py # wrapper for macOS TTS if used
+│   ├── llm/
+│   │   ├── router.py            # “simple vs LLM” decision logic if you want it separated
+│   │   └── client.py            # LLM client (local or remote)
+│   ├── homeassistant/
+│   │   ├── ha_client.py         # REST/WebSocket client to HA on the Pi
+│   │   └── models.py            # small dataclasses for HA entities/services
+│   └── triage/
+│       ├── models/              # Contains the joblib NLP model exports
+│       └── triage.py            # Utterance intent classifier
+│
+├── satellites/               # Code that runs *on* the Pi satellites (client side)
+│   ├── pi_client/
+│   │   ├── __init__.py
+│   │   ├── main.py             # entrypoint: wake word + VAD + MQTT client
+│   │   ├── audio_io.py         # ALSA I/O, play/record
+│   │   ├── mqtt_client.py      # MQTT loop on the Pi
+│   │   ├── config.py
+│   │   └── hardware/           # GPIO, buttons, display drivers, etc.
+│   │       ├── display.py
+│   │       └── buttons.py
+│   └── README.md
+│
+├── config/                   # Non-secret config files for the server
+│   ├── server.yaml           # ports, MQTT broker address, HA URL, etc.
+│   ├── logging.yaml          # logging levels/formatters
+│   └── .env.example          # example ENV vars (HA tokens, API keys)
+│
+├── scripts/                  # CLI scripts / ops helpers (optional but handy)
+│   ├── run_server.sh         # activate .venv + `python -m server.app`
+│   ├── dev_shell.sh          # spawn venv shell
+│   ├── mqtt_debug.py         # small tool to inspect/publish MQTT messages
+│   └── generate_test_audio.py
+│
+├── docs/
+│   ├── architecture.md       # describes this flow: satellite → server → HA → satellite
+│   └── protocol.md           # JSON schemas for MQTT messages & HTTP endpoints
+│
+└── tests/
+    ├── test_routing.py
+    ├── test_mqtt_bus.py
+    └── test_ha_client.py
