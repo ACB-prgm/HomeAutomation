@@ -1,5 +1,4 @@
 # core/__init__.py
+from .core_service import CoreService
 
-from .triage import UtteranceCategorizer
-
-__all__ = ["UtteranceCategorizer"]
+__all__ = ["CoreService"]
