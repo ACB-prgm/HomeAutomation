@@ -45,7 +45,7 @@ class UtteranceCategorizer:
         if text in ROUTINES:
             return "Routine"
         else:
-            preds = self.model.predict(text)
+            preds = self.model.predict([text])
             return preds[0]
 
 __all__ = ["Categorizer"]

@@ -1,10 +1,14 @@
 __pycache__/
 .venv/
 venv/
-ha_config/
-Dev/
 *.log
 Notes.md
+core/tts/models/
+
+# Testing files
+test.ipynb
+test.py
+test.wav
 
 # macOS metadata files
 .DS_Store

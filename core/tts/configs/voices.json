@@ -1,0 +1,162 @@
+{
+	"glados_classic": {
+		"sid": 0,
+		"display_name": "GLaDOS",
+		"engine": "vits",
+		"model_id": "vits-piper-en_US-glados",
+		"locale": "en-US",
+		"gender": "female",
+		"config": {
+			"noise_scale": 0.5,
+			"noise_scale_w": 0.8,
+			"length_scale": 0.95
+		}
+	},
+	"af_vits": {
+		"sid": 0,
+		"display_name": "Carole",
+		"engine": "vits",
+		"model_id": "vits-piper-en_US-hfc_female-medium",
+		"locale": "en-US",
+		"gender": "female",
+		"config": {
+			"noise_scale": 0.1,
+			"noise_scale_w": 0.4,
+			"length_scale": 0.8
+		}
+	},
+	"if_jenny": {
+		"sid": 0,
+		"display_name": "Jenny",
+		"engine": "vits",
+		"model_id": "vits-piper-en_GB-jenny_dioco-medium",
+		"locale": "en-GB",
+		"gender": "female",
+		"config": {
+			"noise_scale": 0.1,
+			"noise_scale_w": 0.8,
+			"length_scale": 0.75
+		}
+	},
+	"af": {
+		"sid": 0,
+		"display_name": "Abigail",
+		"engine": "kokoro",
+		"model_id": "kokoro-en-v0_19",
+		"locale": "en-US",
+		"gender": "female",
+		"config": {
+			"length_scale": 1.0
+		}
+	},
+	"af_bella": {
+		"sid": 1,
+		"display_name": "Bella",
+		"engine": "kokoro",
+		"model_id": "kokoro-en-v0_19",
+		"locale": "en-US",
+		"gender": "female",
+		"config": {
+			"length_scale": 1.0
+		}
+	},
+	"af_nicole": {
+		"sid": 2,
+		"display_name": "Nicole",
+		"engine": "kokoro",
+		"model_id": "kokoro-en-v0_19",
+		"locale": "en-US",
+		"gender": "female",
+		"config": {
+			"length_scale": 1.0
+		}
+	},
+	"af_sarah": {
+		"sid": 3,
+		"display_name": "Sarah",
+		"engine": "kokoro",
+		"model_id": "kokoro-en-v0_19",
+		"locale": "en-US",
+		"gender": "female",
+		"config": {
+			"length_scale": 1.0
+		}
+	},
+	"af_sky": {
+		"sid": 4,
+		"display_name": "Sky",
+		"engine": "kokoro",
+		"model_id": "kokoro-en-v0_19",
+		"locale": "en-US",
+		"gender": "female",
+		"config": {
+			"length_scale": 1.0
+		}
+	},
+	"am_adam": {
+		"sid": 5,
+		"display_name": "Adam",
+		"engine": "kokoro",
+		"model_id": "kokoro-en-v0_19",
+		"locale": "en-US",
+		"gender": "male",
+		"config": {
+			"length_scale": 1.0
+		}
+	},
+	"am_michael": {
+		"sid": 6,
+		"display_name": "Michael",
+		"engine": "kokoro",
+		"model_id": "kokoro-en-v0_19",
+		"locale": "en-US",
+		"gender": "male",
+		"config": {
+			"length_scale": 1.0
+		}
+	},
+	"bf_emma": {
+		"sid": 7,
+		"display_name": "Emma",
+		"engine": "kokoro",
+		"model_id": "kokoro-en-v0_19",
+		"locale": "en-GB",
+		"gender": "female",
+		"config": {
+			"length_scale": 1.0
+		}
+	},
+	"bf_isabella": {
+		"sid": 8,
+		"display_name": "Isabella",
+		"engine": "kokoro",
+		"model_id": "kokoro-en-v0_19",
+		"locale": "en-GB",
+		"gender": "female",
+		"config": {
+			"length_scale": 1.0
+		}
+	},
+	"bm_george": {
+		"sid": 9,
+		"display_name": "George",
+		"engine": "kokoro",
+		"model_id": "kokoro-en-v0_19",
+		"locale": "en-GB",
+		"gender": "male",
+		"config": {
+			"length_scale": 1.0
+		}
+	},
+	"bm_lewis": {
+		"sid": 10,
+		"display_name": "Lewis",
+		"engine": "kokoro",
+		"model_id": "kokoro-en-v0_19",
+		"locale": "en-GB",
+		"gender": "male",
+		"config": {
+			"length_scale": 1.0
+		}
+	}
+}
