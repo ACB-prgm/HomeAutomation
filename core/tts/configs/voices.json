@@ -25,19 +25,6 @@
 			"length_scale": 0.8
 		}
 	},
-	"if_jenny": {
-		"sid": 0,
-		"display_name": "Jenny",
-		"engine": "vits",
-		"model_id": "vits-piper-en_GB-jenny_dioco-medium",
-		"locale": "en-GB",
-		"gender": "female",
-		"config": {
-			"noise_scale": 0.1,
-			"noise_scale_w": 0.8,
-			"length_scale": 0.75
-		}
-	},
 	"af": {
 		"sid": 0,
 		"display_name": "Abigail",

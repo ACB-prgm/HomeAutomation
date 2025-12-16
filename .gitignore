@@ -1,9 +1,13 @@
+# Core files
+core/tts/models/
+core/tts/configs/models.json
+
+# Python Files
 __pycache__/
 .venv/
 venv/
 *.log
 Notes.md
-core/tts/models/
 
 # Testing files
 test.ipynb

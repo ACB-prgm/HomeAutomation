@@ -7,7 +7,7 @@ BASE_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 VENV="$BASE_DIR/.venv"
 
 ##############################################
-# 1. Ensure Python 3.13 exists
+# Ensure Python 3.13 exists
 ##############################################
 
 if ! brew list python@3.13 >/dev/null 2>&1; then
@@ -32,7 +32,26 @@ fi
 echo "[+] Using Python interpreter: $PYTHON_BIN"
 
 ##############################################
-# 2. Create virtual environment
+# install git-lfs
+##############################################
+
+if ! brew list --formula git-lfs >/dev/null 2>&1; then
+    echo "[+] Installing git-lfs (Hugging Face)..."
+    brew install git-lfs
+else
+    echo "[+] git-lfs already installed."
+fi
+
+# Ensure git-lfs is initialized for this user
+if ! git lfs env >/dev/null 2>&1; then
+    echo "[+] Initializing git-lfs..."
+    git lfs install
+else
+    echo "[+] git-lfs already initialized."
+fi
+
+##############################################
+# Create virtual environment
 ##############################################
 
 if [ ! -d "$VENV" ]; then
@@ -50,7 +69,7 @@ echo "[+] Upgrading pip/setuptools/wheel..."
 pip install --upgrade pip setuptools wheel
 
 ##############################################
-# 3. Install Python dependencies
+# Install Python dependencies
 ##############################################
 
 REQ="$BASE_DIR/requirements.txt"
@@ -62,7 +81,7 @@ else
 fi
 
 ##############################################
-# 4. Launch Flask server
+# Launch Flask server
 ##############################################
 
 echo "[+] Starting Flask server..."
