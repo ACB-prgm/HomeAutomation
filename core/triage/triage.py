@@ -29,6 +29,21 @@ class UtteranceCategorizer:
             )
         # Keep the model hot in memory
         self.model = joblib.load(model_path)
+    
+    def categorize(self, text: str):
+        cleaned_text = self._preprocess(text)
+
+        category: str
+        if cleaned_text in ROUTINES:
+            category = "Routine"
+        else:
+            category = self._simple_categorize(cleaned_text)
+
+            if not category:
+                category = self._ml_categorize(cleaned_text)
+        
+        return category, cleaned_text
+
 
     def _preprocess(self, text):
         """Mirror the training-time cleaning: remove trigger word, punctuation, stem, and strip."""
@@ -38,14 +53,18 @@ class UtteranceCategorizer:
         
         return cleaned
 
-    def categorize(self, text):
-        """Predict a category for a single string or a list of strings."""
-        text = self._preprocess(text)
-
-        if text in ROUTINES:
-            return "Routine"
+    def _simple_categorize(self, query: str):
+        if "what time is it" in query:
+            return "Clock"
+        elif "" in query:
+            return ""
         else:
-            preds = self.model.predict([text])
-            return preds[0]
+            return None
+
+    def _ml_categorize(self, text):
+        """Predict a category for a single string or a list of strings."""
+
+        preds = self.model.predict([text])
+        return preds[0]
 
 __all__ = ["Categorizer"]

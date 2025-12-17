@@ -14,10 +14,11 @@ TZ_TRIGGER_RE = re.compile(
 )
 
 class Clock(Handler):
-    def __init__(self):
+    def __init__(self, user_agent:str):
         super().__init__()
+        self.user_agent = user_agent
         self.local_tz: ZoneInfo = get_localzone()
-        self.geolocator = Nominatim(user_agent="clock_handler")
+        self.geolocator = Nominatim(user_agent=self.user_agent)
         self.tz_finder = TimezoneFinder()
         self._tz_cache: dict[str, ZoneInfo] = {}
 

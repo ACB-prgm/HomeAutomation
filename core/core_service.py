@@ -1,6 +1,8 @@
 from .tts import TTSManager
 from .triage import UtteranceCategorizer
-from .handlers import Clock
+from .handlers import Clock, Weather
+
+USER_AGENT = "custom-home-assistant (aaronbastian31@gmail.com)"
 
 
 class CoreService:
@@ -8,23 +10,23 @@ class CoreService:
         self.tts_manager = TTSManager()
         self.tts = self.tts_manager.initialize_tts(voice)
         self.triager = UtteranceCategorizer()
-        self.clock = Clock()
+        self.clock = Clock(user_agent=USER_AGENT)
+        self.weather = Weather(user_agent=USER_AGENT)
 
-    def handle_query(self, query: str):
-        category: str = self.triager.categorize(query)
+    def handle_query(self, query: str, debug:bool = False):
+        category, cleaned_query = self.triager.categorize(query)
 
         if category == "Other":
-            response = self.llm_handle(query)
+            response = self.llm_handle(cleaned_query)
         else:
             # get the class instance made to handle queries of this type.
-            response = self.__getattribute__(category.lower()).handle_query(query)
+            response = self.__getattribute__(category.lower()).handle_query(cleaned_query)
 
-        if response['success']:
-            return self.tts.synthesize(response['text'])
+        if debug:
+            for x in [category, cleaned_query, response]:
+                print(x)
         
+        return self.tts.synthesize(response['text'])
     
     def llm_handle(query:str):
         return ""
-    
-    def clock(query:str):
-        pass
