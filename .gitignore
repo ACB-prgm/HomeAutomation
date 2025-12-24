@@ -1,11 +1,14 @@
 # Core files
-core/tts/models/
 core/tts/configs/models.json
+
+# All model files
+*models/
 
 # Python Files
 __pycache__/
 .venv/
 venv/
+sat_venv/
 *.log
 Notes.md
 
