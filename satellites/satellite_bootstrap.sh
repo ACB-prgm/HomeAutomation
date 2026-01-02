@@ -78,29 +78,11 @@ download "$URL" "$FILENAME"
 # Extract
 extract_rename "$FILENAME" "$RENAME"
 
-
 ##############################################
-# DENOISER MODEL
+# WAKE WORD DETECTION MODEL
 ##############################################
-
-FILENAME="gtcrn_simple.onnx"
-URL="https://github.com/k2-fsa/sherpa-onnx/releases/download/speech-enhancement-models/${FILENAME}"
-RENAME="denoiser.onnx"
-
-# Download
-download "$URL" "$FILENAME"
-# Rename
-mv "$FILENAME" "$RENAME"
-
-##############################################
-# ASR MODEL
-##############################################
-
-FILENAME="sherpa-onnx-nemo-parakeet_tdt_ctc_110m-en-36000-int8.tar.bz2"
+FILENAME="silero_vad.int8.onnx"
 URL="https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/${FILENAME}"
-RENAME="asr"
 
-# Download
 download "$URL" "$FILENAME"
-# Extract
-extract_rename "$FILENAME" "$RENAME"
+mv "$FILENAME" "vad.int8.onnx"

@@ -1,3 +1,3 @@
-from .speech_engine import SpeechEngine
+from .speech_engine import SpeechEngine, SpeechEngineCallbacks
 
-__all__ = ["SpeechEngine"]
+__all__ = ["SpeechEngine", "SpeechEngineCallbacks"]

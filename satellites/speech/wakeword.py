@@ -1,29 +1,32 @@
-# wakeword.py
 from __future__ import annotations
-from typing import Any, Dict, Optional
+
+from typing import Any, Dict, Optional, Union
+from sherpa_onnx import KeywordSpotter
 from dataclasses import dataclass
 from pathlib import Path
 import numpy as np
-from sherpa_onnx import FeatureExtractorConfig, OnlineTransducerModelConfig, \
-	OnlineModelConfig, KeywordSpotterConfig, KeywordSpotter
+import time
+import json
 
 
+MODELS_DIR = Path(__file__).resolve().parent / "models"
+WW_DIR = MODELS_DIR / "wakeword"
+KW_DIR = MODELS_DIR / "wakeword_keywords"
 
-WW_DIR = Path(__file__).resolve().parent / "models/wakeword"
+
+PathLike = Union[str, Path]
 
 
 @dataclass(frozen=True)
 class WakewordModelPaths:
 	# Transducer KWS model files
-	encoder: str | Path = WW_DIR / "encoder-epoch-12-avg-2-chunk-16-left-64.int8.onnx "
-	decoder: str | Path = WW_DIR / "decoder-epoch-12-avg-2-chunk-16-left-64.int8.onnx"
-	joiner: str | Path = WW_DIR / "joiner-epoch-12-avg-2-chunk-16-left-64.int8.onnx"
-	# Tokenized keywords
-	tokens: str | Path = WW_DIR / "tokens.txt"
-	# Only needed for BPE tokenization models (some KWS models require it)
-	bpe_model: Optional[str] = None
-	# Tokenized keywords file (see sherpa-onnx KWS docs)
-	keywords_file: str = "keywords.txt"
+	encoder: PathLike = WW_DIR / "encoder-epoch-12-avg-2-chunk-16-left-64.int8.onnx"
+	decoder: PathLike = WW_DIR / "decoder-epoch-12-avg-2-chunk-16-left-64.int8.onnx"
+	joiner: PathLike = WW_DIR / "joiner-epoch-12-avg-2-chunk-16-left-64.int8.onnx"
+
+	# Token file and tokenized keywords file
+	tokens: PathLike = WW_DIR / "tokens.txt"
+	keywords_file: PathLike = KW_DIR / "keywords.txt"
 
 
 @dataclass(frozen=True)
@@ -31,64 +34,114 @@ class WakewordConfig:
 	sample_rate: int = 16000
 	feature_dim: int = 80
 	num_threads: int = 2
-	provider: str = "cpu"			# "cpu", "cuda", "coreml", etc (depending on build)
+	provider: str = "cpu"
+
 	# KWS tuning knobs (tradeoff: miss vs false alarm)
-	keywords_score: float = 1.5
-	keywords_threshold: float = 0.25
+	keywords_score: float = 4.0
+	keywords_threshold: float = 0.05
 	max_active_paths: int = 4
 	num_trailing_blanks: int = 1
 
+	# Optional decode guardrails
+	max_decode_loops_per_chunk: int = 50  # prevents pathological infinite loops in some builds
+
+def create_keywords_from_raw(
+	tokens: str | Path,
+	bpe_model: str | Path | None,
+	keywords_raw: str | Path,
+	keywords_out: str | Path,
+	tokens_type: str = "bpe",
+	cwd: str | Path | None = None
+) -> None:
+	import subprocess
+
+	def _p(x: str | Path | None, name: str, check_file: bool = True) -> Path | None:
+		assert x is not None
+		path = Path(str(x).strip()).expanduser().resolve()
+		if check_file and not path.is_file():
+			raise FileNotFoundError(f"not found: {name} @ {x}")
+
+		return path
+
+	tokens_p = _p(tokens, "tokens")
+	raw_p = _p(keywords_raw, "keywords_raw")
+	out_p = _p(keywords_out, "keywords_out", False)
+	bpe_p = _p(bpe_model, "bpe_model")
+	cwd_p = _p(cwd, "cwd", False) if cwd is not None else None
+
+	cmd = [
+		"sherpa-onnx-cli",
+		"text2token",
+		"--tokens", str(tokens_p),
+		"--tokens-type", tokens_type,
+		"--bpe-model", str(bpe_p),
+		str(raw_p), str(out_p)
+	]
+
+	out_p.parent.mkdir(parents=True, exist_ok=True)
+	subprocess.run(cmd, check=True, cwd=str(cwd_p) if cwd_p else None)
 
 class SherpaWakeword:
 	"""
-	Robust wrapper around sherpa_onnx KeywordSpotter. Normalizes result to a dict.
+	Wrapper around sherpa_onnx.KeywordSpotter.
 
-	Important: KWS in sherpa-onnx is "open vocabulary keyword spotting" driven by a
-	tokenized keywords file (see docs). :contentReference[oaicite:3]{index=3}
+	- process(): feed audio chunk (float32 mono [-1, 1]) and get a normalized event dict or None
+	- finalize()/flush(): useful for wav/offline tests to drain final hypotheses
 	"""
-	def __init__(
-			self, 
-			paths: WakewordModelPaths = WakewordModelPaths(), 
-			cfg: WakewordConfig = WakewordConfig()
-		):
 
+	def __init__(
+		self,
+		paths: WakewordModelPaths = WakewordModelPaths(),
+		cfg: WakewordConfig = WakewordConfig(),
+	):
 		self.paths = paths
 		self.cfg = cfg
 
-		feat_config = FeatureExtractorConfig(
-			sampling_rate=cfg.sample_rate,
-			feature_dim=cfg.feature_dim,
-		)
+		self._validate_paths()
 
-		transducer = OnlineTransducerModelConfig(
-			encoder=paths.encoder,
-			decoder=paths.decoder,
-			joiner=paths.joiner,
-		)
-
-		model_config = OnlineModelConfig(
-			transducer=transducer,
-			tokens=paths.tokens,
-			num_threads=cfg.num_threads,
-			provider=cfg.provider,
-		)
-
-		# Some builds expose bpe_model on OnlineModelConfig; set if present
-		if paths.bpe_model is not None and hasattr(model_config, "bpe_model"):
-			setattr(model_config, "bpe_model", paths.bpe_model)
-
-		kws_config = KeywordSpotterConfig(
-			feat_config=feat_config,
-			model_config=model_config,
-			keywords_file=paths.keywords_file,
-			max_active_paths=cfg.max_active_paths,
-			num_trailing_blanks=cfg.num_trailing_blanks,
-			keywords_score=cfg.keywords_score,
-			keywords_threshold=cfg.keywords_threshold,
-		)
-
-		self._kws = KeywordSpotter(kws_config)
+		self._kws = self._create_keyword_spotter()
 		self._stream = self._kws.create_stream()
+
+	def _validate_paths(self) -> None:
+		kwp = Path(self.paths.keywords_file)
+
+		if not (kwp.exists() and kwp.is_file()):
+			create_keywords_from_raw(
+				self.paths.tokens,
+				WW_DIR / "bpe.model",
+				KW_DIR / "keywords_raw.txt",
+				self.paths.keywords_file,
+				cwd=KW_DIR
+			)
+
+		missing = []
+		for p in (self.paths.encoder, self.paths.decoder, self.paths.joiner, self.paths.tokens, self.paths.keywords_file):
+			pp = Path(p)
+			if not pp.exists():
+				missing.append(str(pp))
+
+		if missing:
+			raise FileNotFoundError("Missing wakeword asset(s):\n\t" + "\n\t".join(missing))
+
+	def _create_keyword_spotter(self) -> KeywordSpotter:
+		# Build a superset of kwargs; we’ll strip unsupported ones if needed.
+		kwargs = dict(
+			sample_rate=int(self.cfg.sample_rate),
+			feature_dim=int(self.cfg.feature_dim),
+			keywords_file=str(self.paths.keywords_file),
+			encoder=str(self.paths.encoder),
+			decoder=str(self.paths.decoder),
+			joiner=str(self.paths.joiner),
+			tokens=str(self.paths.tokens),
+			num_trailing_blanks=int(self.cfg.num_trailing_blanks),
+			keywords_threshold=float(self.cfg.keywords_threshold),
+			keywords_score=float(self.cfg.keywords_score),
+			max_active_paths=int(self.cfg.max_active_paths),
+			num_threads=int(self.cfg.num_threads),
+			provider=str(self.cfg.provider),
+		)
+
+		return KeywordSpotter(**kwargs)
 
 	def reset(self) -> None:
 		# API name varies across versions; handle both
@@ -97,71 +150,79 @@ class SherpaWakeword:
 		elif hasattr(self._kws, "reset"):
 			self._kws.reset(self._stream)
 		else:
-			# recreate stream as last resort
 			self._stream = self._kws.create_stream()
 
-	def process(self, audio_f32: np.ndarray) -> Optional[Dict[str, Any]]:
+	def process(self, audio_f32: np.ndarray, sample_rate: Optional[int] = None) -> Optional[Dict[str, Any]]:
 		"""
 		Feed a chunk. Returns a dict if a keyword triggered, else None.
 
-		audio_f32: mono float32 [-1,1], arbitrary chunk length
+		audio_f32: mono float32 [-1, 1], arbitrary chunk length
+		sample_rate: if provided, passed through to accept_waveform; otherwise cfg.sample_rate
 		"""
 		x = np.asarray(audio_f32, dtype=np.float32).reshape(-1)
+		if x.size == 0:
+			return None
 
-		# pybind signature accepts Sequence[float]; list is the safest interop
-		self._stream.accept_waveform(float(self.cfg.sample_rate), x.tolist())
+		sr = float(sample_rate or self.cfg.sample_rate)
 
-		# Some versions gate decoding with is_ready()
-		if hasattr(self._kws, "is_ready"):
-			while self._kws.is_ready(self._stream):
-				self._kws.decode_stream(self._stream)
-		else:
-			self._kws.decode_stream(self._stream)
+		# pybind signature often accepts Sequence[float]; list() is safest interop
+		# TODO ensure that x should not be raw
+		self._stream.accept_waveform(sr, x.tolist())
+
+		self._decode_available()
 
 		result = self._get_result()
-		if result is None:
+		if not result:
 			return None
 
 		# Clear state so it can trigger again cleanly
 		self.reset()
 		return result
 
+	def _decode_available(self) -> None:
+		loops = 0
+		if hasattr(self._kws, "is_ready"):
+			while self._kws.is_ready(self._stream):
+				self._kws.decode_stream(self._stream)
+				loops += 1
+				if loops >= self.cfg.max_decode_loops_per_chunk:
+					break
+		else:
+			self._kws.decode_stream(self._stream)
+
+	def finalize(self) -> None:
+		"""
+		Signal end-of-input (useful for wav tests).
+		"""
+		if hasattr(self._stream, "input_finished"):
+			self._stream.input_finished()
+
+	def flush(self, timeout_s: float = 0.25) -> None:
+		"""
+		Try to drain any remaining decodes after finalize().
+		"""
+		t0 = time.time()
+		while time.time() - t0 < timeout_s:
+			if hasattr(self._kws, "is_ready"):
+				if not self._kws.is_ready(self._stream):
+					break
+			self._kws.decode_stream(self._stream)
+
 	def _get_result(self) -> Optional[Dict[str, Any]]:
-		# Common APIs observed in sherpa-onnx builds:
-		# - get_result(stream) -> object w/ keyword + timestamps, etc
-		# - get_result_as_json(stream) -> str
-		# - stream.result (less common for KWS)
-		if hasattr(self._kws, "get_result_as_json"):
-			s = self._kws.get_result_as_json(self._stream)
-			if not s:
-				return None
-			try:
-				import json
-				obj = json.loads(s)
-			except Exception:
-				return {"raw": s}
-			kw = obj.get("keyword") or obj.get("text") or ""
-			return obj if kw else None
-
+		# Option 1: JSON string
 		if hasattr(self._kws, "get_result"):
-			r = self._kws.get_result(self._stream)
-			if r is None:
-				return None
+			res = self._kws.get_result(self._stream)
+		elif hasattr(self._stream, "result"):
+			res = self._stream.result
+		else:
+			return None
 
-			kw = getattr(r, "keyword", None) or getattr(r, "text", None) or ""
-			if not kw:
-				return None
-
-			out: Dict[str, Any] = {"keyword": kw}
-			for k in ("start_time", "end_time", "timestamps"):
-				if hasattr(r, k):
-					out[k] = getattr(r, k)
-			return out
-
-		# Fallback: try stream.result
-		if hasattr(self._stream, "result"):
-			r = self._stream.result
-			kw = getattr(r, "keyword", None) or getattr(r, "text", None) or ""
-			return {"keyword": kw} if kw else None
-
-		return None
+		if res in (None, "", {}):
+			return None
+		
+		try:
+			obj = json.loads(res) if isinstance(res, str) else res
+		except Exception:
+			obj = res
+		
+		return obj

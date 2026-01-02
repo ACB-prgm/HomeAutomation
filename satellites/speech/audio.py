@@ -27,6 +27,7 @@ class AudioInput:
 		self.cfg = cfg
 		self._stream = None
 		self._running = threading.Event()
+		self.frame_length_ms = cfg.block_size / cfg.sample_rate * 1000
 		self._q: "queue.Queue[np.ndarray]" = queue.Queue(maxsize=50)
 
 	def start(self) -> None:
