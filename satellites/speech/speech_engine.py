@@ -22,13 +22,6 @@ class _State(enum.Enum):
 	LISTEN_WAKEWORD = 1
 	CAPTURE_UTTERANCE = 2
 
-
-@dataclass
-class SpeechEngineCallbacks:
-	on_wakeword: Optional[Callable[[dict], None]] = print
-	on_utterance_ended: Optional[Callable[[np.ndarray, int], None]] = print
-
-
 class SpeechEngine:
 	def __init__(
 		self,
@@ -36,13 +29,13 @@ class SpeechEngine:
 		audio_in: AudioInput = None,
 		vad: VadBackend = None,
 		sample_rate: int = 16000,
-		callbacks: SpeechEngineCallbacks = SpeechEngineCallbacks(),
 		max_utterance_s: float = 10.0,
 		debug: bool = False
 	):	
 		self.sample_rate = sample_rate
 		self.debug = debug
-		self.callbacks = callbacks
+		self._on_wakeword: Optional[Callable[[dict], None]] = print
+		self._on_utterance_ended: Optional[Callable[[np.ndarray, int], None]] = print
 		self.max_utterance_s = max_utterance_s
 		self._state = _State.LISTEN_WAKEWORD
 		self._utt_buf: list[np.ndarray] = []
@@ -89,10 +82,10 @@ class SpeechEngine:
 		evt = self.wakeword.process(frame)
 		if evt:
 			if self.debug:
-				print("wakeword detected")
+				print("Wakeword detected")
 
-			if self.callbacks.on_wakeword:
-				self.callbacks.on_wakeword(evt)
+			if self._on_wakeword:
+				self._on_wakeword(evt)
 
 			self._utt_buf = [frame]
 			self._state = _State.CAPTURE_UTTERANCE
@@ -106,13 +99,13 @@ class SpeechEngine:
 			reason = "vad" if self.vad.speech_captured else "timeout"
 			audio = np.concatenate(self.vad.get_samples(flush=True))
 
-			if self.callbacks.on_utterance_ended:
-				self.callbacks.on_utterance_ended(audio, reason)
+			if self._on_utterance_ended:
+				self._on_utterance_ended(audio, reason)
 			self.vad.reset()
 			self._state = _State.LISTEN_WAKEWORD
 
 			if self.debug:
 				if timeout:
-					print("Timeout reached.")
+					print("Timeout reached")
 				else:
-					print("VAD Segment finished. Capturing...")
+					print("VAD Segment finished")
