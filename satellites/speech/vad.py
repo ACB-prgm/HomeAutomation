@@ -100,8 +100,9 @@ class SherpaVAD(VadBackend):
 		self.vad.flush()
 		self.speech_captured = not self.vad.empty()
 	
-	def clear(self) -> None:
-		# self.vad.flush()
+	def clear(self, flush: bool= False) -> None:
+		if flush:
+			self.vad.flush()
 		while not self.vad.empty():
 			self.vad.pop()
 		self.speech_captured = False
@@ -123,7 +124,10 @@ class SherpaVAD(VadBackend):
 		# Check if VAD has produced any segments
 		self.speech_captured = not self.vad.empty()
 
-	def get_samples(self) -> np.ndarray:
+	def get_samples(self, flush: bool = False) -> np.ndarray:
+		if flush:
+			self.vad.flush()
+		
 		# Extract all ready segments
 		chunks = []
 		while not self.vad.empty():
@@ -132,4 +136,4 @@ class SherpaVAD(VadBackend):
 		
 		if not chunks:
 			return np.zeros((0,), dtype=np.float32)
-		return np.concatenate(chunks)
+		return chunks

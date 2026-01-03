@@ -20,9 +20,9 @@ PathLike = Union[str, Path]
 @dataclass(frozen=True)
 class WakewordModelPaths:
 	# Transducer KWS model files
-	encoder: PathLike = WW_DIR / "encoder-epoch-12-avg-2-chunk-16-left-64.int8.onnx"
-	decoder: PathLike = WW_DIR / "decoder-epoch-12-avg-2-chunk-16-left-64.int8.onnx"
-	joiner: PathLike = WW_DIR / "joiner-epoch-12-avg-2-chunk-16-left-64.int8.onnx"
+	encoder: PathLike = WW_DIR / "encoder-epoch-12-avg-2-chunk-16-left-64.onnx"
+	decoder: PathLike = WW_DIR / "decoder-epoch-12-avg-2-chunk-16-left-64.onnx"
+	joiner: PathLike = WW_DIR / "joiner-epoch-12-avg-2-chunk-16-left-64.onnx"
 
 	# Token file and tokenized keywords file
 	tokens: PathLike = WW_DIR / "tokens.txt"
@@ -33,7 +33,7 @@ class WakewordModelPaths:
 class WakewordConfig:
 	sample_rate: int = 16000
 	feature_dim: int = 80
-	num_threads: int = 2
+	num_threads: int = 4
 	provider: str = "cpu"
 
 	# KWS tuning knobs (tradeoff: miss vs false alarm)
@@ -164,31 +164,23 @@ class SherpaWakeword:
 			return None
 
 		sr = float(sample_rate or self.cfg.sample_rate)
-
-		# pybind signature often accepts Sequence[float]; list() is safest interop
-		# TODO ensure that x should not be raw
 		self._stream.accept_waveform(sr, x.tolist())
 
 		self._decode_available()
-
 		result = self._get_result()
 		if not result:
 			return None
-
-		# Clear state so it can trigger again cleanly
-		self.reset()
-		return result
+		else:
+			self.reset()
+			return result
 
 	def _decode_available(self) -> None:
 		loops = 0
-		if hasattr(self._kws, "is_ready"):
-			while self._kws.is_ready(self._stream):
-				self._kws.decode_stream(self._stream)
-				loops += 1
-				if loops >= self.cfg.max_decode_loops_per_chunk:
-					break
-		else:
+		while self._kws.is_ready(self._stream):
 			self._kws.decode_stream(self._stream)
+			loops += 1
+			if loops >= self.cfg.max_decode_loops_per_chunk:
+				break
 
 	def finalize(self) -> None:
 		"""

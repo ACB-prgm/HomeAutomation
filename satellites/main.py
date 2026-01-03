@@ -9,7 +9,7 @@ def on_utterance_ended(audio, reason: str):
 	print(reason)
 	# This automatically writes the correct WAV header and handles float32 data
 	sf.write("satellites/test.wav", audio, 16000)
-	quit()
+	# quit()
 
 def main():
 	callbacks = SpeechEngineCallbacks(

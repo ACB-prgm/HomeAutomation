@@ -76,16 +76,16 @@ class SpeechEngine:
 		for frame in self.audio_in.frames():
 			if len(frame) < frame_n:
 				frame = np.pad(frame, (0, frame_n - len(frame)))
-			
-			self.vad.accept_audio(frame)
+			frame = np.clip(frame * 5.0, -1.0, 1.0)
 
+			self.vad.accept_audio(frame)
 			match self._state:
 				case _State.LISTEN_WAKEWORD:
 					self.listen_wakeword(frame)
 				case _State.CAPTURE_UTTERANCE:
 					self.capture_utterance()
 	
-	def listen_wakeword(self, frame):	
+	def listen_wakeword(self, frame):
 		evt = self.wakeword.process(frame)
 		if evt:
 			if self.debug:
@@ -94,39 +94,25 @@ class SpeechEngine:
 			if self.callbacks.on_wakeword:
 				self.callbacks.on_wakeword(evt)
 
-			self._utt_buf = [self.vad.get_samples()]
+			self._utt_buf = [frame]
 			self._state = _State.CAPTURE_UTTERANCE
 			self._utt_start_t = time.time()
-			self.wakeword.reset()
 		else:
 			self.vad.clear()
 	
 	def capture_utterance(self):
-		if self.vad.speech_captured:
+		timeout = (time.time() - self._utt_start_t) >= self.max_utterance_s
+		if self.vad.speech_captured or timeout:
+			reason = "vad" if self.vad.speech_captured else "timeout"
+			audio = np.concatenate(self.vad.get_samples(flush=True))
+
+			if self.callbacks.on_utterance_ended:
+				self.callbacks.on_utterance_ended(audio, reason)
+			self.vad.reset()
+			self._state = _State.LISTEN_WAKEWORD
+
 			if self.debug:
-				print("VAD Segment finished. Capturing...")
-			
-			# Combine all available segments into one audio buffer
-			audio_chunk = self.vad.get_samples()
-			self._finish_utterance(audio_chunk, "vad")
-			return
-
-		# Check for Timeout
-		if (time.time() - self._utt_start_t) >= self.max_utterance_s:
-			if self.debug:
-				print("Timeout reached.")
-			
-			# Force flush whatever is in the buffer
-			self.vad.flush()
-			audio_chunk = self.vad.get_samples()
-			self._finish_utterance(audio_chunk, "timeout")
-
-	def _finish_utterance(self, audio, reason):
-		if self.callbacks.on_utterance_ended:
-			self.callbacks.on_utterance_ended(audio, reason)
-
-		# Reset and go back to listening
-		self.wakeword.reset()
-		self._state = _State.LISTEN_WAKEWORD
-		# Important: Ensure VAD is clean for the next round
-		self.vad.reset()
+				if timeout:
+					print("Timeout reached.")
+				else:
+					print("VAD Segment finished. Capturing...")

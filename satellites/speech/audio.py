@@ -13,7 +13,7 @@ from typing import Iterator, Optional
 @dataclass(frozen=True)
 class AudioConfig:
 	channels: int = 1
-	block_size: int = 320			# 20ms @ 16k
+	block_size: int = 512			# 20ms @ 16k
 	sample_rate: int = 16000
 	device: Optional[int] = None	# sounddevice device id, or None=default
 
@@ -42,7 +42,7 @@ class AudioInput:
 
 			x = np.asarray(indata, dtype=np.float32)
 			if x.ndim == 2 and x.shape[1] > 1:
-				x = np.mean(x, axis=1)
+				x = x[:, 0] # Make mono
 			else:
 				x = x.reshape(-1)
 
@@ -50,6 +50,7 @@ class AudioInput:
 			try:
 				self._q.put_nowait(x.copy())
 			except queue.Full:
+				print("WARNING: Audio buffer overflow! Dropping frames.")
 				try:
 					_ = self._q.get_nowait()
 				except queue.Empty:
