@@ -1,9 +1,12 @@
 import subprocess
 import sys
+import tempfile
+from pathlib import Path
 from typing import Optional
 
 from .llm import LLMManager
-from .tts.wyoming_client import WyomingTtsClient
+from .tts import WyomingTtsClient
+from .asr import ASR
 from .triage import UtteranceCategorizer
 from .handlers import Clock, Weather
 
@@ -39,6 +42,7 @@ class CoreService:
             self.llm_manager.ensure_running()
         if llm_auto_pull and llm_model:
             self.llm_manager.ensure_model(llm_model)
+        self.asr = ASR()
         self.triager = UtteranceCategorizer()
         self.clock = Clock(user_agent=USER_AGENT)
         self.weather = Weather(user_agent=USER_AGENT)
@@ -60,6 +64,19 @@ class CoreService:
     
     def llm_handle(query:str):
         return ""
+
+    def handle_audio(self, file_obj) -> str:
+        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp_file:
+            file_obj.save(tmp_file.name)
+            tmp_path = tmp_file.name
+
+        try:
+            return self.asr.transcribe(tmp_path)
+        finally:
+            try:
+                Path(tmp_path).unlink()
+            except FileNotFoundError:
+                pass
 
     def stop(self) -> None:
         if self.tts_client is not None:

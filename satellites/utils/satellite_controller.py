@@ -16,10 +16,10 @@ class SatelliteController:
 		self.speech.start()
 
 	def handle_wakeword(self, evt: dict):
-		print(evt)
+		print("Event", evt)
 
 	def handle_utterance(self, audio: np.ndarray, reason: str):
-		print(reason)
+		print("Reason",reason)
 
 	def handle_command(self, command):
 		if command.type == "set_volume":

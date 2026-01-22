@@ -51,6 +51,30 @@ else
 fi
 
 ##############################################
+# Install Ollama
+##############################################
+
+if ! brew list --formula ollama >/dev/null 2>&1; then
+    echo "[+] Installing ollama ..."
+    brew install ollama
+else
+    echo "[+] ollama already installed."
+fi
+
+if brew services list | grep -q '^ollama'; then
+    STATUS="$(brew services list | awk '$1 == \"ollama\" {print $2}')"
+    if [ "$STATUS" != "started" ]; then
+        echo "[+] Starting ollama service..."
+        brew services start ollama
+    else
+        echo "[+] ollama service already running."
+    fi
+else
+    echo "[+] Starting ollama service..."
+    brew services start ollama
+fi
+
+##############################################
 # Create virtual environment
 ##############################################
 
