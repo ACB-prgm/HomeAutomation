@@ -105,7 +105,7 @@ class CoreService:
             [
                 sys.executable,
                 "-m",
-                "core.tts.tts_wyoming",
+                "core.tts.tts_wyoming_server",
                 "--voice",
                 voice,
                 "--uri",
