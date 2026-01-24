@@ -63,8 +63,45 @@ if [ -z "$PY_JSON_BIN" ]; then
     PY_JSON_BIN="/usr/bin/python3"
 fi
 
+BREW_LOCK_WARNED=0
+
+brew_prefix() {
+    brew --prefix 2>/dev/null || true
+}
+
+warn_brew_lock() {
+    local prefix lock_path
+    prefix="$(brew_prefix)"
+    if [ -z "$prefix" ]; then
+        if [ "$(uname -m)" = "arm64" ]; then
+            prefix="/opt/homebrew"
+        else
+            prefix="/usr/local"
+        fi
+    fi
+
+    lock_path="$(find "$prefix/Cellar" -name ".brew.lock" -print -quit 2>/dev/null || true)"
+    if [ -n "$lock_path" ]; then
+        if [ "$BREW_LOCK_WARNED" -eq 0 ]; then
+            echo "[!] Homebrew lock detected at $lock_path"
+            echo "[!] Another brew process may be stuck. Consider terminating it and removing the lock file."
+            BREW_LOCK_WARNED=1
+        fi
+        return 0
+    fi
+
+    return 1
+}
+
 brew_git_lfs_version() {
-    brew info --json=v2 git-lfs 2>/dev/null | "$PY_JSON_BIN" - <<'PY'
+    local json
+    warn_brew_lock >/dev/null 2>&1 || true
+    json="$(brew info --json=v2 git-lfs 2>/dev/null || true)"
+    if [ -z "$json" ]; then
+        echo ""
+        return 1
+    fi
+    printf "%s" "$json" | "$PY_JSON_BIN" - <<'PY'
 import json, sys
 data = json.load(sys.stdin)
 version = data.get("formulae", [{}])[0].get("versions", {}).get("stable", "")
@@ -74,6 +111,7 @@ PY
 
 brew_git_lfs_has_bottle() {
     local os_tag arch_tag
+    warn_brew_lock >/dev/null 2>&1 || true
     os_tag="$(get_macos_tag)"
     if [ -z "$os_tag" ]; then
         return 1
@@ -85,7 +123,13 @@ brew_git_lfs_has_bottle() {
         arch_tag="$os_tag"
     fi
 
-    OS_TAG="$os_tag" ARCH_TAG="$arch_tag" brew info --json=v2 git-lfs 2>/dev/null | "$PY_JSON_BIN" - <<'PY'
+    local json
+    json="$(brew info --json=v2 git-lfs 2>/dev/null || true)"
+    if [ -z "$json" ]; then
+        return 1
+    fi
+
+    OS_TAG="$os_tag" ARCH_TAG="$arch_tag" printf "%s" "$json" | "$PY_JSON_BIN" - <<'PY'
 import json, os, sys
 data = json.load(sys.stdin)
 files = data.get("formulae", [{}])[0].get("bottle", {}).get("stable", {}).get("files", {})
@@ -186,24 +230,161 @@ fi
 # Install Ollama
 ##############################################
 
+brew_ollama_has_bottle() {
+    local os_tag arch_tag
+    warn_brew_lock >/dev/null 2>&1 || true
+    os_tag="$(get_macos_tag)"
+    if [ -z "$os_tag" ]; then
+        return 1
+    fi
+
+    if [ "$(uname -m)" = "arm64" ]; then
+        arch_tag="arm64_${os_tag}"
+    else
+        arch_tag="$os_tag"
+    fi
+
+    local json
+    json="$(brew info --json=v2 ollama 2>/dev/null || true)"
+    if [ -z "$json" ]; then
+        return 1
+    fi
+
+    OS_TAG="$os_tag" ARCH_TAG="$arch_tag" printf "%s" "$json" | "$PY_JSON_BIN" - <<'PY'
+import json, os, sys
+data = json.load(sys.stdin)
+files = data.get("formulae", [{}])[0].get("bottle", {}).get("stable", {}).get("files", {})
+os_tag = os.environ.get("OS_TAG")
+arch_tag = os.environ.get("ARCH_TAG")
+if arch_tag in files or os_tag in files:
+    sys.exit(0)
+sys.exit(1)
+PY
+}
+
+install_ollama_from_github() {
+    local url=""
+    local version="${OLLAMA_VERSION:-}"
+    local arch_tag="darwin-amd64"
+    local install_dir="${OLLAMA_INSTALL_DIR:-/usr/local/bin}"
+    local tmp_dir
+
+    if [ "$(uname -m)" = "arm64" ]; then
+        arch_tag="darwin-arm64"
+    fi
+
+    if [ -n "${OLLAMA_URL:-}" ]; then
+        url="$OLLAMA_URL"
+    elif [ -n "$version" ]; then
+        local base="https://github.com/ollama/ollama/releases/download/v${version}"
+        local candidates=(
+            "${base}/ollama-${arch_tag}"
+            "${base}/ollama-darwin"
+            "${base}/ollama-${arch_tag}.zip"
+            "${base}/ollama-darwin.zip"
+            "${base}/ollama-${arch_tag}.tgz"
+            "${base}/ollama-darwin.tgz"
+            "${base}/ollama-${arch_tag}.tar.gz"
+            "${base}/ollama-darwin.tar.gz"
+        )
+        for candidate in "${candidates[@]}"; do
+            if curl -fL "$candidate" -o /tmp/ollama-download >/dev/null 2>&1; then
+                url="$candidate"
+                break
+            fi
+        done
+    else
+        echo "[ERROR] Set OLLAMA_VERSION or OLLAMA_URL to install from GitHub."
+        return 1
+    fi
+
+    if [ -z "$url" ]; then
+        echo "[ERROR] Unable to find a suitable Ollama release asset."
+        return 1
+    fi
+
+    echo "[+] Installing ollama from GitHub: $url"
+    tmp_dir="$(mktemp -d)"
+    curl -L "$url" -o "$tmp_dir/ollama-download"
+
+    local bin_path=""
+    if [[ "$url" == *.zip ]]; then
+        if command -v unzip >/dev/null 2>&1; then
+            unzip -q "$tmp_dir/ollama-download" -d "$tmp_dir/unpack"
+        else
+            ditto -x -k "$tmp_dir/ollama-download" "$tmp_dir/unpack"
+        fi
+        bin_path="$(find "$tmp_dir/unpack" -type f -name ollama -perm -111 | head -n 1)"
+    elif [[ "$url" == *.tgz ]] || [[ "$url" == *.tar.gz ]]; then
+        mkdir -p "$tmp_dir/unpack"
+        tar -xzf "$tmp_dir/ollama-download" -C "$tmp_dir/unpack"
+        bin_path="$(find "$tmp_dir/unpack" -type f -name ollama -perm -111 | head -n 1)"
+    else
+        bin_path="$tmp_dir/ollama-download"
+        chmod +x "$bin_path"
+    fi
+
+    if [ -z "$bin_path" ]; then
+        echo "[ERROR] ollama binary not found in archive."
+        rm -rf "$tmp_dir"
+        return 1
+    fi
+
+    if [ ! -w "$install_dir" ]; then
+        install_dir="$HOME/.local/bin"
+        mkdir -p "$install_dir"
+        echo "[!] /usr/local/bin not writable; installing to $install_dir"
+        echo "[!] Ensure $install_dir is in PATH."
+    fi
+
+    install -m 755 "$bin_path" "$install_dir/ollama"
+    rm -rf "$tmp_dir"
+    echo "$install_dir/ollama"
+}
+
+OLLAMA_INSTALL_METHOD="${OLLAMA_INSTALL_METHOD:-auto}"
+OLLAMA_FALLBACK_VERSION="${OLLAMA_FALLBACK_VERSION:-0.13.1}"
+OLLAMA_BIN="ollama"
+
 if ! brew list --formula ollama >/dev/null 2>&1; then
-    echo "[+] Installing ollama ..."
-    brew install ollama
+    if [ "$OLLAMA_INSTALL_METHOD" = "auto" ]; then
+        if brew_ollama_has_bottle; then
+            OLLAMA_INSTALL_METHOD="brew"
+        else
+            OLLAMA_INSTALL_METHOD="github"
+        fi
+    fi
+
+    if [ "$OLLAMA_INSTALL_METHOD" = "github" ]; then
+        if [ -z "${OLLAMA_VERSION:-}" ] && [ -z "${OLLAMA_URL:-}" ]; then
+            OLLAMA_VERSION="$OLLAMA_FALLBACK_VERSION"
+            export OLLAMA_VERSION
+        fi
+        OLLAMA_BIN="$(install_ollama_from_github)"
+    else
+        echo "[+] Installing ollama (Homebrew)..."
+        brew install ollama
+    fi
 else
     echo "[+] ollama already installed."
 fi
 
-if brew services list | grep -q '^ollama'; then
-    STATUS="$(brew services list | awk '$1 == \"ollama\" {print $2}')"
-    if [ "$STATUS" != "started" ]; then
+if brew list --formula ollama >/dev/null 2>&1; then
+    if brew services list | grep -q '^ollama'; then
+        STATUS="$(brew services list | awk '$1 == \"ollama\" {print $2}')"
+        if [ "$STATUS" != "started" ]; then
+            echo "[+] Starting ollama service..."
+            brew services start ollama
+        else
+            echo "[+] ollama service already running."
+        fi
+    else
         echo "[+] Starting ollama service..."
         brew services start ollama
-    else
-        echo "[+] ollama service already running."
     fi
 else
-    echo "[+] Starting ollama service..."
-    brew services start ollama
+    echo "[+] Starting ollama in background..."
+    "$OLLAMA_BIN" serve >/tmp/ollama.log 2>&1 &
 fi
 
 ##############################################
