@@ -3,6 +3,15 @@ set -e
 
 echo "=== Home Automation Bootstrap Start ==="
 
+if [ "$EUID" -eq 0 ]; then
+    if [ -n "${SUDO_USER:-}" ]; then
+        echo "[!] Do not run bootstrap as root; re-running as $SUDO_USER"
+        exec sudo -u "$SUDO_USER" -H "$0" "$@"
+    fi
+    echo "[ERROR] Do not run bootstrap as root."
+    exit 1
+fi
+
 BASE_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 VENV="$BASE_DIR/.venv"
 
@@ -93,11 +102,22 @@ warn_brew_lock() {
     return 1
 }
 
+json_output_valid() {
+    case "$1" in
+        \{*|\[*)
+            return 0
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
 brew_git_lfs_version() {
     local json
     warn_brew_lock >/dev/null 2>&1 || true
     json="$(brew info --json=v2 git-lfs 2>/dev/null || true)"
-    if [ -z "$json" ]; then
+    if [ -z "$json" ] || ! json_output_valid "$json"; then
         echo ""
         return 1
     fi
@@ -125,7 +145,7 @@ brew_git_lfs_has_bottle() {
 
     local json
     json="$(brew info --json=v2 git-lfs 2>/dev/null || true)"
-    if [ -z "$json" ]; then
+    if [ -z "$json" ] || ! json_output_valid "$json"; then
         return 1
     fi
 
@@ -192,7 +212,7 @@ install_git_lfs_from_github() {
 
 GIT_LFS_INSTALL_METHOD="${GIT_LFS_INSTALL_METHOD:-auto}"
 GIT_LFS_FALLBACK_VERSION="${GIT_LFS_FALLBACK_VERSION:-3.7.1}"
-if ! brew list --formula git-lfs >/dev/null 2>&1; then
+if ! command -v git-lfs >/dev/null 2>&1 && ! brew list --formula git-lfs >/dev/null 2>&1; then
     if [ "$GIT_LFS_INSTALL_METHOD" = "auto" ]; then
         if brew_git_lfs_has_bottle; then
             GIT_LFS_INSTALL_METHOD="brew"
@@ -246,7 +266,7 @@ brew_ollama_has_bottle() {
 
     local json
     json="$(brew info --json=v2 ollama 2>/dev/null || true)"
-    if [ -z "$json" ]; then
+    if [ -z "$json" ] || ! json_output_valid "$json"; then
         return 1
     fi
 
@@ -346,7 +366,7 @@ OLLAMA_INSTALL_METHOD="${OLLAMA_INSTALL_METHOD:-auto}"
 OLLAMA_FALLBACK_VERSION="${OLLAMA_FALLBACK_VERSION:-0.13.1}"
 OLLAMA_BIN="ollama"
 
-if ! brew list --formula ollama >/dev/null 2>&1; then
+if ! command -v ollama >/dev/null 2>&1 && ! brew list --formula ollama >/dev/null 2>&1; then
     if [ "$OLLAMA_INSTALL_METHOD" = "auto" ]; then
         if brew_ollama_has_bottle; then
             OLLAMA_INSTALL_METHOD="brew"
