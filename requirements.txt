@@ -45,6 +45,7 @@ shellingham==1.5.4
 sherpa-onnx-core==1.12.19
 sherpa_onnx==1.12.19
 six==1.17.0
+soundfile==0.13.1
 sympy==1.14.0
 threadpoolctl==3.6.0
 timezonefinder==8.1.0
@@ -56,7 +57,5 @@ tzdata==2025.2
 tzlocal==5.3.1
 urllib3==2.5.0
 Werkzeug==3.1.4
-paho-mqtt==2.1.0
-Wyoming
-word2number
-soundfile
+word2number==1.1
+wyoming==1.8.0

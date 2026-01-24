@@ -11,6 +11,10 @@ fi
 REAL_USER="${SUDO_USER:-$USER}"
 echo "[+] Target user: $REAL_USER"
 
+warn_continue() {
+    echo "[WARN] $1 (continuing)"
+}
+
 ##############################################
 # Enable SSH (remote login)
 ##############################################
@@ -41,12 +45,31 @@ echo "[+] Reloading SSH daemon..."
 launchctl kickstart -k system/com.openssh.sshd
 
 ##############################################
+# Show IP + SSH hint
+##############################################
+
+IP_ADDR="$(ipconfig getifaddr en0 2>/dev/null || true)"
+if [ -z "$IP_ADDR" ]; then
+    IP_ADDR="$(ipconfig getifaddr en1 2>/dev/null || true)"
+fi
+if [ -z "$IP_ADDR" ]; then
+    IP_ADDR="$(ifconfig | awk '/inet / && $2 != "127.0.0.1" {print $2; exit}')"
+fi
+
+if [ -n "$IP_ADDR" ]; then
+    echo "[+] Device IP: $IP_ADDR"
+    echo "[+] SSH example: ssh $REAL_USER@$IP_ADDR"
+else
+    echo "[WARN] Could not determine IP address."
+fi
+
+##############################################
 # Auto-restart after power loss
 ##############################################
 
 echo "[+] Enabling auto-restart after power failure..."
-pmset -a autorestart 1
-systemsetup -setrestartpowerfailure on
+pmset -a autorestart 1 || warn_continue "pmset autorestart failed"
+systemsetup -setrestartpowerfailure on || warn_continue "systemsetup restartpowerfailure failed"
 
 ##############################################
 # Disable automatic login
@@ -68,17 +91,3 @@ defaults write /Library/Preferences/com.apple.loginwindow DisableAutomaticLogin 
 
 echo "=== Server setup complete ==="
 echo "Note: Ensure $REAL_USER has a login password set for SSH."
-
-##############################################
-# Run bootstrap
-##############################################
-
-BOOTSTRAP="$PWD/bootstrap.sh"
-if [ -f "$BOOTSTRAP" ]; then
-    echo "[+] Ensuring bootstrap.sh is executable..."
-    chmod +x "$BOOTSTRAP"
-    echo "[+] Running bootstrap.sh as $REAL_USER..."
-    sudo -u "$REAL_USER" "$BOOTSTRAP"
-else
-    echo "[!] bootstrap.sh not found at $BOOTSTRAP"
-fi
