@@ -64,6 +64,21 @@ else
 fi
 
 ##############################################
+# Power management (server reliability)
+##############################################
+
+if pmset -g batt 2>/dev/null | grep -q "InternalBattery"; then
+    PMSET_SCOPE="-c"
+    POWER_PROFILE="AC power (laptop detected)"
+else
+    PMSET_SCOPE="-a"
+    POWER_PROFILE="all power sources"
+fi
+
+echo "[+] Applying power settings for $POWER_PROFILE..."
+pmset "$PMSET_SCOPE" sleep 0 disksleep 0 powernap 1 womp 1 tcpkeepalive 1 || warn_continue "pmset power settings failed"
+
+##############################################
 # Auto-restart after power loss
 ##############################################
 
