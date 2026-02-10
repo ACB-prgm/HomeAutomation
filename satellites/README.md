@@ -1,0 +1,62 @@
+# Satellites
+
+This directory contains the Raspberry Pi satellite runtime and helper scripts.
+
+## Quick Start (Pi)
+
+1. Bootstrap dependencies, virtualenv, and model assets:
+
+```bash
+./satellites/satellite_bootstrap.sh
+```
+
+2. Optional: list audio devices and select the right input/output indices:
+
+```bash
+./satellites/scripts/list_audio_devices.sh
+```
+
+3. Run the satellite:
+
+```bash
+./satellites/scripts/run_satellite.sh
+```
+
+## Scripts
+
+- `satellites/satellite_bootstrap.sh`
+  - Installs Debian/Ubuntu OS packages (unless `--skip-apt`)
+  - Creates/updates Python runtime (unless `--skip-python`)
+  - Creates/updates the satellite virtualenv at `sat_venv`
+  - Installs `satellites/sat_requirements.txt`
+  - Downloads wakeword + VAD models (unless `--skip-models`)
+  - Creates default config if missing
+  - Args:
+    - `--skip-apt`
+    - `--skip-python`
+    - `--skip-models`
+    - `--force-models`
+    - `-h`, `--help`
+- `satellites/scripts/run_satellite.sh`
+  - Launches `satellites/main.py` with a config path.
+  - Runs preflight checks for venv, Python deps, and model files.
+  - Auto-runs `satellites/satellite_bootstrap.sh` if requirements are missing.
+  - Args:
+    - `--config <path>`
+    - `--venv <path>`
+    - `--no-bootstrap`
+    - `--` (pass extra args to `main.py`)
+    - `-h`, `--help`
+- `satellites/scripts/list_audio_devices.sh`
+  - Prints PortAudio device list and default device indices.
+  - Args: none
+
+## Config
+
+Default config path: `satellites/config/satellite.json`
+
+You can override when launching:
+
+```bash
+./satellites/scripts/run_satellite.sh --config /path/to/satellite.json
+```

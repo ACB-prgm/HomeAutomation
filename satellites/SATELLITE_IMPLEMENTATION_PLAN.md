@@ -174,10 +174,10 @@ Exit criteria:
 
 ## 8) Immediate Next Steps
 
-1. Implement `/satellites/utils/config.py` with schema + persistence.
+1. Add structured logging fields (`satellite_id`, `session_id`, `pipeline_run_id`) across satellite runtime.
 2. Add `satellites/scripts/pi_install_lva.sh` and systemd unit templates.
-3. Add audio device discovery + validation command.
-4. Add first-pass VAD mode abstraction (`sherpa` default, `hybrid` scaffolded).
+3. Add first-pass VAD mode abstraction (`sherpa` default, `hybrid` scaffolded).
+4. Validate launcher/bootstrap flow end-to-end on Raspberry Pi hardware (XVF3800 connected).
 
 ## References
 
