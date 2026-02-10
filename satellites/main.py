@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import logging
 from pathlib import Path
 
 from speech import SpeechEngine
@@ -8,6 +9,7 @@ from speech.audio import AudioConfig, AudioInput
 from speech.vad import SherpaVAD
 from utils import IdentityManager, SatelliteController
 from utils.config import ConfigManager
+from utils.runtime_logging import configure_logging, context_extra
 
 
 def _build_speech_engine(config):
@@ -54,18 +56,36 @@ def _parse_args() -> argparse.Namespace:
 def main(config_path: Path | str | None = None):
 	try:
 		config = ConfigManager(path=config_path).load(create_if_missing=True)
-		print(f"Starting satellite '{config.identity.friendly_name}'")
+		configure_logging(config.runtime.log_level)
+		logger = logging.getLogger("satellite.main")
+		logger.info(
+			"Config loaded",
+			extra=context_extra(room=config.identity.room),
+		)
+		logger.info(
+			f"Starting satellite '{config.identity.friendly_name}'",
+			extra=context_extra(room=config.identity.room),
+		)
 		im = IdentityManager(path=config.identity.path)
+		identity = im.load()
+		logger.info(
+			"Identity loaded",
+			extra=context_extra(
+				satellite_id=identity.satellite_id,
+				room=config.identity.room,
+			),
+		)
 
 		controller = SatelliteController(
-			im.load(),
+			identity,
 			None,
 			None,
 			_build_speech_engine(config),
+			room=config.identity.room,
 		)
 		controller.start()
 	except KeyboardInterrupt:
-		pass
+		logging.getLogger("satellite.main").info("Shutdown requested by user")
 
 
 if __name__ == "__main__":

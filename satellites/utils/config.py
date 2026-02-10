@@ -52,6 +52,7 @@ def _load_yaml_or_none():
 class IdentityConfig:
 	path: Path = field(default_factory=_default_identity_path)
 	friendly_name: str = "Home Satellite"
+	room: str = "unassigned"
 
 
 @dataclass(frozen=True)
@@ -128,6 +129,7 @@ class SatelliteConfig:
 			identity=IdentityConfig(
 				path=_resolve_path(identity_raw.get("path"), _default_identity_path(), base_dir),
 				friendly_name=str(identity_raw.get("friendly_name", IdentityConfig.friendly_name)),
+				room=str(identity_raw.get("room", IdentityConfig.room)),
 			),
 			audio=AudioSettings(
 				sample_rate=int(audio_raw.get("sample_rate", AudioSettings.sample_rate)),

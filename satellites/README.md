@@ -55,8 +55,26 @@ This directory contains the Raspberry Pi satellite runtime and helper scripts.
 
 Default config path: `satellites/config/satellite.json`
 
+Identity config includes:
+- `friendly_name`
+- `path` (identity file path)
+- `room` (used for structured log context)
+
 You can override when launching:
 
 ```bash
 ./satellites/scripts/run_satellite.sh --config /path/to/satellite.json
 ```
+
+## Logging
+
+Runtime logs include structured fields:
+- `satellite_id`
+- `session_id`
+- `pipeline_run_id`
+- `room`
+
+## Open Validation TODOs
+
+- Validate `./satellites/scripts/list_audio_devices.sh` detects ReSpeaker XVF3800 on target Pi.
+- Set and verify `audio.input_device` / `audio.output_device` in `satellites/config/satellite.json` from discovered indices.

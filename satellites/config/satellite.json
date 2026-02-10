@@ -1,7 +1,8 @@
 {
   "identity": {
     "friendly_name": "Home Satellite",
-    "path": "../identity.json"
+    "path": "../identity.json",
+    "room": "unassigned"
   },
   "audio": {
     "sample_rate": 16000,

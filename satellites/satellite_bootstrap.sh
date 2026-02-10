@@ -229,7 +229,7 @@ import json
 cfg = Path("${CONFIG_PATH}").expanduser().resolve()
 cfg.parent.mkdir(parents=True, exist_ok=True)
 payload = {
-    "identity": {"friendly_name": "Home Satellite", "path": "../identity.json"},
+    "identity": {"friendly_name": "Home Satellite", "path": "../identity.json", "room": "unassigned"},
     "audio": {"sample_rate": 16000, "channels": 1, "block_size": 512, "input_device": None, "output_device": None, "volume": 0.8},
     "vad": {"mode": "sherpa", "threshold": 0.25, "min_silence_duration": 0.5, "min_speech_duration": 0.01, "max_utterance_s": 10.0},
     "speech": {"debug": True},
