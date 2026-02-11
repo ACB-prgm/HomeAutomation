@@ -1,3 +1,4 @@
+import os
 import subprocess
 import time
 from shutil import which
@@ -29,9 +30,11 @@ class LLMManager:
         if (not self.auto_start) or (not self._can_start()):
             return False
 
-        self._process = subprocess.Popen(
-            ["ollama", "serve"],
-        )
+        parsed = urlparse(self.base_url)
+        port = parsed.port or 11434
+        env = os.environ.copy()
+        env["OLLAMA_HOST"] = f"0.0.0.0:{port}"
+        self._process = subprocess.Popen(["ollama", "serve"], env=env)
         self._owns_process = True
         return self._wait_until_ready()
 
@@ -103,9 +106,4 @@ class LLMManager:
         return which("ollama") is not None
 
     def _can_start(self) -> bool:
-        if not self._ollama_available():
-            return False
-
-        parsed = urlparse(self.base_url)
-        host = parsed.hostname or ""
-        return host in {"127.0.0.1", "localhost", "::1"}
+        return self._ollama_available()

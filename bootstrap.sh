@@ -10,16 +10,38 @@ VENV="$BASE_DIR/.venv"
 # Ensure Homebrew exists
 ##############################################
 
+ARCH="$(uname -m)"
+HW_ARM64="$(sysctl -n hw.optional.arm64 2>/dev/null || echo 0)"
+if [ "$HW_ARM64" = "1" ]; then
+    TARGET_ARCH="arm64"
+else
+    TARGET_ARCH="$ARCH"
+fi
+
+if [ "$TARGET_ARCH" = "arm64" ]; then
+    EXPECTED_BREW="/opt/homebrew/bin/brew"
+else
+    EXPECTED_BREW="/usr/local/bin/brew"
+fi
+
 BREW_BIN="$(command -v brew || true)"
 if [ -z "$BREW_BIN" ]; then
-    if [ -x /opt/homebrew/bin/brew ]; then
+    if [ -x "$EXPECTED_BREW" ]; then
+        BREW_BIN="$EXPECTED_BREW"
+    elif [ -x /opt/homebrew/bin/brew ]; then
         BREW_BIN="/opt/homebrew/bin/brew"
     elif [ -x /usr/local/bin/brew ]; then
         BREW_BIN="/usr/local/bin/brew"
     else
         echo "[+] Installing Homebrew ..."
-        NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-        if [ -x /opt/homebrew/bin/brew ]; then
+        if [ "$TARGET_ARCH" = "arm64" ] && [ "$ARCH" = "x86_64" ] && command -v arch >/dev/null 2>&1; then
+            NONINTERACTIVE=1 /usr/bin/arch -arm64 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+        else
+            NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+        fi
+        if [ -x "$EXPECTED_BREW" ]; then
+            BREW_BIN="$EXPECTED_BREW"
+        elif [ -x /opt/homebrew/bin/brew ]; then
             BREW_BIN="/opt/homebrew/bin/brew"
         elif [ -x /usr/local/bin/brew ]; then
             BREW_BIN="/usr/local/bin/brew"
@@ -28,6 +50,11 @@ if [ -z "$BREW_BIN" ]; then
             exit 1
         fi
     fi
+fi
+
+if [ "$BREW_BIN" != "$EXPECTED_BREW" ] && [ -x "$EXPECTED_BREW" ]; then
+    echo "[!] Using native Homebrew at $EXPECTED_BREW for $TARGET_ARCH"
+    BREW_BIN="$EXPECTED_BREW"
 fi
 
 eval "$("$BREW_BIN" shellenv)"
@@ -132,6 +159,86 @@ if [ -f "$REQ" ]; then
 else
     echo "[!] No requirements.txt found — skipping."
 fi
+
+##############################################
+# Download ASR models
+##############################################
+
+ASR_MODEL_DIR="$BASE_DIR/core/asr/models"
+mkdir -p "$ASR_MODEL_DIR"
+
+download() {
+    local url="$1"
+    local output="$2"
+
+    if command -v wget >/dev/null 2>&1; then
+        wget -O "$output" "$url"
+    elif command -v curl >/dev/null 2>&1; then
+        curl -L --fail -o "$output" "$url"
+    else
+        echo "Error: neither wget nor curl is installed" >&2
+        exit 1
+    fi
+}
+
+extract_rename() {
+    local filename="$1"
+    local target_dir="$2"
+
+    local default_name="${filename%.tar.bz2}"
+    if [ -z "$target_dir" ]; then
+        target_dir="$default_name"
+    fi
+
+    local roots
+    roots="$(
+        tar -tjf "$filename" \
+        | sed 's|^\./||' \
+        | cut -d/ -f1 \
+        | sort -u
+    )"
+
+    tar -xjf "$filename"
+
+    local root_count
+    root_count="$(echo "$roots" | wc -l | tr -d ' ')"
+
+    if [[ "$root_count" -eq 1 && -d "$roots" ]]; then
+        rm -rf "$target_dir"
+        mv "$roots" "$target_dir"
+    else
+        rm -rf "$target_dir"
+        mkdir "$target_dir"
+
+        for item in $roots; do
+            [[ -e "$item" ]] && mv "$item" "$target_dir/"
+        done
+    fi
+
+    rm "$filename"
+
+    local test_wavs_dir="$ASR_MODEL_DIR/$target_dir/test_wavs"
+    if [[ -d "$test_wavs_dir" ]]; then
+        rm -rf "$test_wavs_dir"
+    fi
+}
+
+echo "[+] Downloading ASR models..."
+pushd "$ASR_MODEL_DIR" >/dev/null
+
+FILENAME="gtcrn_simple.onnx"
+URL="https://github.com/k2-fsa/sherpa-onnx/releases/download/speech-enhancement-models/${FILENAME}"
+RENAME="denoiser.onnx"
+download "$URL" "$FILENAME"
+mv "$FILENAME" "$RENAME"
+
+FILENAME="sherpa-onnx-nemo-parakeet_tdt_ctc_110m-en-36000-int8.tar.bz2"
+URL="https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/${FILENAME}"
+RENAME="asr"
+download "$URL" "$FILENAME"
+extract_rename "$FILENAME" "$RENAME"
+
+popd >/dev/null
 
 ##############################################
 # Launch Flask server

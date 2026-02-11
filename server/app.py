@@ -1,8 +1,13 @@
 from flask import Flask, request
 from core import CoreService
 from core.llm import LlmBenchmarkRunner
+from core.networking import get_preferred_ip
 
-service = CoreService()
+preferred_ip = get_preferred_ip()
+service = CoreService(
+    tts_uri=f"tcp://{preferred_ip}:10200",
+    llm_base_url=f"http://{preferred_ip}:11434",
+)
 benchmark_runner = LlmBenchmarkRunner(base_url=service.llm_manager.base_url)
 app = Flask(__name__)
 

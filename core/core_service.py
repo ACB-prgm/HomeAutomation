@@ -3,14 +3,28 @@ import sys
 import tempfile
 from pathlib import Path
 from typing import Optional
+from urllib.parse import urlparse, urlunparse
 
 from .llm import LLMManager
 from .tts import WyomingTtsClient
 from .asr import ASR
 from .triage import UtteranceCategorizer
-from .handlers import Clock, Weather
+from .networking import get_preferred_ip
+# from .handlers import Clock, Weather
 
 USER_AGENT = "custom-home-assistant (aaronbastian31@gmail.com)"
+
+
+def _swap_localhost(url: str, new_host: str) -> str:
+    parsed = urlparse(url)
+    host = parsed.hostname
+    if host not in {"127.0.0.1", "localhost", "::1"}:
+        return url
+    port = parsed.port
+    netloc = f"{new_host}:{port}" if port else new_host
+    return urlunparse(
+        (parsed.scheme, netloc, parsed.path, parsed.params, parsed.query, parsed.fragment)
+    )
 
 
 class CoreService:
@@ -24,6 +38,10 @@ class CoreService:
         llm_auto_start: bool = True,
         llm_auto_pull: bool = False,
     ):
+        preferred_ip = get_preferred_ip()
+        tts_uri = _swap_localhost(tts_uri, preferred_ip)
+        llm_base_url = _swap_localhost(llm_base_url, preferred_ip)
+
         self.default_voice = voice
         self.tts_uri = tts_uri
         self.tts_client = WyomingTtsClient(tts_uri, timeout=tts_start_timeout)
@@ -44,8 +62,11 @@ class CoreService:
             self.llm_manager.ensure_model(llm_model)
         self.asr = ASR()
         self.triager = UtteranceCategorizer()
-        self.clock = Clock(user_agent=USER_AGENT)
-        self.weather = Weather(user_agent=USER_AGENT)
+        # self.clock = Clock(user_agent=USER_AGENT)
+        # self.weather = Weather(user_agent=USER_AGENT)
+
+        print(f"[+] TTS URI: {self.tts_uri}")
+        print(f"[+] LLM base URL: {self.llm_manager.base_url}")
 
     def handle_query(self, query: str, debug:bool = False):
         category, cleaned_query = self.triager.categorize(query)
