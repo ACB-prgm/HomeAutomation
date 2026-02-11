@@ -138,12 +138,16 @@ install_apt_deps() {
 		build-essential
 		python3-venv
 		python3-dev
+		python3-pip
 		portaudio19-dev
+		libportaudio2
 		libsndfile1
-		libatlas-base-dev
 		curl
 		ca-certificates
 	)
+	if apt-cache show libatlas-base-dev >/dev/null 2>&1; then
+		packages+=(libatlas-base-dev)
+	fi
 
 	log "Installing apt packages: ${packages[*]}"
 	if [[ "${EUID:-$(id -u)}" -eq 0 ]]; then
@@ -204,6 +208,16 @@ install_models() {
 		mv -f "silero_vad.int8.onnx" "$vad_file"
 	else
 		log "VAD model already present."
+	fi
+
+	# Keep wakeword keyword files in the path expected by wakeword.py.
+	local kws_dir="$model_dir/wakeword_keywords"
+	mkdir -p "$kws_dir"
+	if [[ -f "$wakeword_dir/keywords_raw.txt" ]]; then
+		cp -f "$wakeword_dir/keywords_raw.txt" "$kws_dir/keywords_raw.txt"
+	fi
+	if [[ -f "$wakeword_dir/keywords.txt" ]]; then
+		cp -f "$wakeword_dir/keywords.txt" "$kws_dir/keywords.txt"
 	fi
 
 	popd >/dev/null
