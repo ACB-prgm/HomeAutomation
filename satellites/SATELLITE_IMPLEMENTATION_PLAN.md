@@ -1,6 +1,6 @@
 # Satellite Implementation Plan (Raspberry Pi + ReSpeaker XVF3800 + Home Assistant)
 
-Last updated: 2026-02-10
+Last updated: 2026-02-11
 
 ## 1) Goals and Success Criteria
 
@@ -53,6 +53,26 @@ Exit criteria:
 2. Identity + config persist across reboot.
 
 ## Phase 1: LVA Integration on Pi
+
+### Phase 1A: Provisioning + Deployment Foundation
+
+1. Add a one-time Pi provisioning script:
+   - sparse checkout of `satellites/` only
+   - persistent config path under `/etc/home-satellite`
+   - persistent identity path under `/var/lib/satellite`
+2. Install systemd services:
+   - `home-satellite.service`
+   - `home-satellite-updater.service`
+3. Add remote update scripts and daemon:
+   - safe update + rollback
+   - token-validated server-triggered update requests
+
+Exit criteria:
+1. New Pi can be provisioned with a single script command.
+2. Satellite runs at boot as a service.
+3. Update command can pull/rebuild/restart without replacing config/identity.
+
+### Phase 1B: LVA Integration on Pi
 
 1. Add a wrapper service manager in this repo:
    - installer script for Pi dependencies
@@ -164,6 +184,8 @@ Exit criteria:
 3. Pi installer + service scripts for LVA + raspotify.
 4. Runtime mode adapter for `sherpa/xvf/hybrid` VAD operation.
 5. Validation playbooks/checklists in `/satellites/` docs.
+6. Pi provisioning script with sparse checkout + service installation.
+7. Updater daemon + safe update script with rollback.
 
 ## 7) Risks and Mitigations
 
@@ -176,12 +198,13 @@ Exit criteria:
 
 ## 8) Immediate Next Steps
 
-1. Add `satellites/scripts/pi_install_lva.sh` and systemd unit templates.
-2. Validate launcher/bootstrap flow end-to-end on Raspberry Pi hardware (XVF3800 connected).
-3. Confirm `satellites/scripts/list_audio_devices.sh` detects the ReSpeaker XVF3800 input device and record the chosen `audio.input_device` value.
-4. Confirm selected speaker output path is detected and record `audio.output_device` value.
-5. Add first-pass VAD mode abstraction (`sherpa` default, `hybrid` scaffolded).
-6. Begin Phase 1 LVA integration and HA onboarding validation.
+1. Validate provisioning flow on a new Pi with `satellites/scripts/pi_install_lva.sh`.
+2. Validate updater flow using MQTT-triggered update command.
+3. Validate launcher/bootstrap flow end-to-end on Raspberry Pi hardware (XVF3800 connected).
+4. Confirm `satellites/scripts/list_audio_devices.sh` detects the ReSpeaker XVF3800 input device and record the chosen `audio.input_device` value.
+5. Confirm selected speaker output path is detected and record `audio.output_device` value.
+6. Add first-pass VAD mode abstraction (`sherpa` default, `hybrid` scaffolded).
+7. Begin Phase 1B LVA integration and HA onboarding validation.
 
 ## References
 

@@ -1,0 +1,17 @@
+[Unit]
+Description=Home Satellite Updater Daemon
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=__ENV_FILE__
+User=root
+WorkingDirectory=__INSTALL_DIR__
+ExecStart=__INSTALL_DIR__/sat_venv/bin/python __INSTALL_DIR__/satellites/scripts/satellite_updater_daemon.py
+Restart=always
+RestartSec=5
+TimeoutStopSec=15
+
+[Install]
+WantedBy=multi-user.target
