@@ -118,7 +118,16 @@ fi
 if [[ "$SKIP_APT" -eq 0 && -f /etc/debian_version ]]; then
 	log "Installing OS dependencies"
 	apt-get update
-	apt-get install -y git python3 python3-venv python3-pip ca-certificates curl
+	apt-get install -y \
+		git \
+		python3 \
+		python3-venv \
+		python3-pip \
+		ca-certificates \
+		curl \
+		portaudio19-dev \
+		libportaudio2 \
+		libsndfile1
 fi
 
 require_cmd git
