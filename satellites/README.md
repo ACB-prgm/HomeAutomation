@@ -138,6 +138,15 @@ You can override when launching:
 ./satellites/scripts/run_satellite.sh --config /path/to/satellite.json
 ```
 
+### Speech Runtime Tuning
+
+`speech` settings support low-power tuning:
+- `input_gain` (default `1.0`): leave at `1.0` for ReSpeaker unless you need amplification.
+- `wake_rms_gate` (default `0.0035`): lightweight RMS gate before wakeword decode.
+- `wake_gate_hold_frames` (default `8`): keeps wake decode open briefly after energy drops.
+- `wakeword_threads` (default `1`): ONNX threads used by wakeword model.
+- `vad_threads` (default `1`): ONNX threads used by Sherpa VAD.
+
 ## Logging
 
 Runtime logs include structured fields:

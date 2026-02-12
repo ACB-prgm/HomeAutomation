@@ -295,7 +295,14 @@ payload = {
     "identity": {"friendly_name": "Home Satellite", "path": "../identity.json", "room": "unassigned"},
     "audio": {"sample_rate": 16000, "channels": 1, "block_size": 512, "input_device": None, "output_device": None, "volume": 0.8},
     "vad": {"mode": "sherpa", "threshold": 0.25, "min_silence_duration": 0.5, "min_speech_duration": 0.01, "max_utterance_s": 10.0},
-    "speech": {"debug": True},
+    "speech": {
+        "debug": False,
+        "input_gain": 1.0,
+        "wake_rms_gate": 0.0035,
+        "wake_gate_hold_frames": 8,
+        "wakeword_threads": 1,
+        "vad_threads": 1
+    },
     "runtime": {"log_level": "INFO", "reconnect_min_s": 1.0, "reconnect_max_s": 30.0},
 }
 with cfg.open("w", encoding="utf-8") as f:

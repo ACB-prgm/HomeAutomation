@@ -108,18 +108,20 @@ class SherpaVAD(VadBackend):
 		self.speech_captured = False
 
 	def accept_audio(self, audio_f32: np.ndarray) -> None:
-		# Append new audio to our internal buffer
-		self._buffer = np.concatenate([self._buffer, audio_f32])
+		x = np.asarray(audio_f32, dtype=np.float32).reshape(-1)
+		if x.size == 0:
+			return
 
-		# While we have enough data for a window step
-		while self._buffer.size >= self._window_size:
-			# Take the first window_size samples
-			window = self._buffer[:self._window_size]
-			# Remove them from buffer
-			self._buffer = self._buffer[self._window_size:]
-			
-			# Feed to VAD
+		# Merge small residual from prior call with this frame.
+		if self._buffer.size > 0:
+			x = np.concatenate((self._buffer, x))
+
+		offset = 0
+		while offset + self._window_size <= x.size:
+			window = x[offset : offset + self._window_size]
 			self.vad.accept_waveform(window.tolist())
+			offset += self._window_size
+		self._buffer = x[offset:]
 		
 		# Check if VAD has produced any segments
 		self.speech_captured = not self.vad.empty()

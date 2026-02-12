@@ -77,6 +77,11 @@ class VadSettings:
 @dataclass(frozen=True)
 class SpeechSettings:
 	debug: bool = False
+	input_gain: float = 1.0
+	wake_rms_gate: float = 0.0035
+	wake_gate_hold_frames: int = 8
+	wakeword_threads: int = 1
+	vad_threads: int = 1
 
 
 @dataclass(frozen=True)
@@ -116,6 +121,16 @@ class SatelliteConfig:
 			raise ValueError("runtime.reconnect_min_s must be > 0")
 		if self.runtime.reconnect_max_s < self.runtime.reconnect_min_s:
 			raise ValueError("runtime.reconnect_max_s must be >= runtime.reconnect_min_s")
+		if self.speech.input_gain <= 0:
+			raise ValueError("speech.input_gain must be > 0")
+		if self.speech.wake_rms_gate < 0:
+			raise ValueError("speech.wake_rms_gate must be >= 0")
+		if self.speech.wake_gate_hold_frames < 0:
+			raise ValueError("speech.wake_gate_hold_frames must be >= 0")
+		if self.speech.wakeword_threads <= 0:
+			raise ValueError("speech.wakeword_threads must be > 0")
+		if self.speech.vad_threads <= 0:
+			raise ValueError("speech.vad_threads must be > 0")
 
 	@classmethod
 	def from_dict(cls, data: dict[str, Any], base_dir: Optional[Path] = None) -> "SatelliteConfig":
@@ -148,6 +163,11 @@ class SatelliteConfig:
 			),
 			speech=SpeechSettings(
 				debug=bool(speech_raw.get("debug", SpeechSettings.debug)),
+				input_gain=float(speech_raw.get("input_gain", SpeechSettings.input_gain)),
+				wake_rms_gate=float(speech_raw.get("wake_rms_gate", SpeechSettings.wake_rms_gate)),
+				wake_gate_hold_frames=int(speech_raw.get("wake_gate_hold_frames", SpeechSettings.wake_gate_hold_frames)),
+				wakeword_threads=max(1, int(speech_raw.get("wakeword_threads", SpeechSettings.wakeword_threads))),
+				vad_threads=max(1, int(speech_raw.get("vad_threads", SpeechSettings.vad_threads))),
 			),
 			runtime=RuntimeSettings(
 				log_level=str(runtime_raw.get("log_level", RuntimeSettings.log_level)),

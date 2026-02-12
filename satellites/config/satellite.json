@@ -20,7 +20,12 @@
     "max_utterance_s": 10.0
   },
   "speech": {
-    "debug": true
+    "debug": false,
+    "input_gain": 1.0,
+    "wake_rms_gate": 0.0035,
+    "wake_gate_hold_frames": 8,
+    "wakeword_threads": 1,
+    "vad_threads": 1
   },
   "runtime": {
     "log_level": "INFO",

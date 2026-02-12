@@ -7,6 +7,7 @@ from pathlib import Path
 from speech import SpeechEngine
 from speech.audio import AudioConfig, AudioInput
 from speech.vad import SherpaVAD
+from speech.wakeword import SherpaWakeword, WakewordConfig
 from utils import IdentityManager, SatelliteController
 from utils.config import ConfigManager
 from utils.runtime_logging import configure_logging, context_extra
@@ -31,14 +32,26 @@ def _build_speech_engine(config):
 		min_silence_duration=config.vad.min_silence_duration,
 		min_speech_duration=config.vad.min_speech_duration,
 		max_speech_duration=config.vad.max_utterance_s,
+		num_threads=config.speech.vad_threads,
+	)
+
+	wakeword = SherpaWakeword(
+		cfg=WakewordConfig(
+			sample_rate=config.audio.sample_rate,
+			num_threads=config.speech.wakeword_threads,
+		)
 	)
 
 	return SpeechEngine(
+		wakeword=wakeword,
 		audio_in=audio_in,
 		vad=vad,
 		sample_rate=config.audio.sample_rate,
 		max_utterance_s=config.vad.max_utterance_s,
 		debug=config.speech.debug,
+		input_gain=config.speech.input_gain,
+		wake_rms_gate=config.speech.wake_rms_gate,
+		wake_gate_hold_frames=config.speech.wake_gate_hold_frames,
 	)
 
 
