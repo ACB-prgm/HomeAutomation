@@ -220,12 +220,13 @@ install_models() {
 	fi
 
 	# Keep wakeword keyword files in the path expected by wakeword.py.
+	# Preserve custom keywords if already configured.
 	local kws_dir="$model_dir/wakeword_keywords"
 	mkdir -p "$kws_dir"
-	if [[ -f "$wakeword_dir/keywords_raw.txt" ]]; then
+	if [[ "$FORCE_MODELS" -eq 1 || ! -f "$kws_dir/keywords_raw.txt" ]] && [[ -f "$wakeword_dir/keywords_raw.txt" ]]; then
 		cp -f "$wakeword_dir/keywords_raw.txt" "$kws_dir/keywords_raw.txt"
 	fi
-	if [[ -f "$wakeword_dir/keywords.txt" ]]; then
+	if [[ "$FORCE_MODELS" -eq 1 || ! -f "$kws_dir/keywords.txt" ]] && [[ -f "$wakeword_dir/keywords.txt" ]]; then
 		cp -f "$wakeword_dir/keywords.txt" "$kws_dir/keywords.txt"
 	fi
 

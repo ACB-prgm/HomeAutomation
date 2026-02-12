@@ -122,6 +122,10 @@ Notes:
 - `satellites/scripts/respeaker_led_off.sh`
   - Uses `xvf_host` to disable ReSpeaker XVF3800 LEDs.
   - Intended for use by `respeaker-led-off.service`.
+- `satellites/scripts/set_wakewords.sh`
+  - Sets custom wakeword phrases and regenerates tokenized keywords.
+  - Example:
+    - `./satellites/scripts/set_wakewords.sh "HEY CORA" "GLADOS" "SPARK"`
 
 ## Config
 
@@ -146,6 +150,11 @@ You can override when launching:
 - `wake_gate_hold_frames` (default `8`): keeps wake decode open briefly after energy drops.
 - `wakeword_threads` (default `1`): ONNX threads used by wakeword model.
 - `vad_threads` (default `1`): ONNX threads used by Sherpa VAD.
+
+### Wakeword Phrases
+
+Bootstrap now preserves existing `satellites/speech/models/wakeword_keywords/keywords_raw.txt`
+and `keywords.txt` unless `--force-models` is used.
 
 ## Logging
 
