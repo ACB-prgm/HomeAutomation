@@ -12,6 +12,7 @@ SAT_SERVICE="${SAT_SERVICE_NAME:-home-satellite.service}"
 SERVICE_USER="${SAT_SERVICE_USER:-pi}"
 LOCK_FILE="${SAT_UPDATE_LOCK_FILE:-/tmp/home-satellite-update.lock}"
 BRANCH_DEFAULT="${SAT_GIT_BRANCH:-codex/ai-dev}"
+WAKEWORDS_FILE="${SAT_WAKEWORDS_FILE:-$GIT_DIR/satellites/config/wakewords.txt}"
 UPDATE_TARGET=""
 DRY_RUN=0
 
@@ -155,6 +156,13 @@ ROLLBACK_NEEDED=1
 
 log "Running bootstrap (skip apt)"
 run_as_service_user "$GIT_DIR/satellites/satellite_bootstrap.sh" --skip-apt
+
+if [[ -f "$WAKEWORDS_FILE" ]]; then
+	log "Applying wakewords from: $WAKEWORDS_FILE"
+	run_as_service_user "$GIT_DIR/satellites/scripts/set_wakewords.sh" --file "$WAKEWORDS_FILE"
+else
+	log "No wakewords file found at $WAKEWORDS_FILE; skipping wakeword apply."
+fi
 
 log "Starting $SAT_SERVICE"
 run_cmd systemctl start "$SAT_SERVICE"

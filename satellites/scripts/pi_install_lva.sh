@@ -183,6 +183,7 @@ SAT_GIT_BRANCH=$BRANCH
 SAT_SERVICE_USER=$SERVICE_USER
 SAT_UPDATE_SCRIPT=$INSTALL_DIR/satellites/scripts/update_satellite.sh
 SAT_RESPEAKER_TOOLS_DIR=$INSTALL_DIR/satellites/tools/respeaker_xvf3800/host_control/rpi_64bit
+SAT_WAKEWORDS_FILE=$INSTALL_DIR/satellites/config/wakewords.txt
 SAT_IDENTITY_PATH=$IDENTITY_PATH
 SAT_MQTT_BROKER=$MQTT_BROKER
 SAT_MQTT_PORT=$MQTT_PORT
@@ -234,6 +235,21 @@ else
 		SAT_CONFIG_PATH="$CONFIG_PATH" \
 		SAT_RESPEAKER_TOOLS_DIR="$INSTALL_DIR/satellites/tools/respeaker_xvf3800/host_control/rpi_64bit" \
 		"$INSTALL_DIR/satellites/satellite_bootstrap.sh" --skip-apt
+fi
+
+if [[ -f "$INSTALL_DIR/satellites/config/wakewords.txt" ]]; then
+	log "Applying wakewords from $INSTALL_DIR/satellites/config/wakewords.txt"
+	if command -v sudo >/dev/null 2>&1; then
+		sudo -u "$SERVICE_USER" env \
+			SAT_VENV_DIR="$INSTALL_DIR/sat_venv" \
+			SAT_WAKEWORDS_FILE="$INSTALL_DIR/satellites/config/wakewords.txt" \
+			"$INSTALL_DIR/satellites/scripts/set_wakewords.sh" --file "$INSTALL_DIR/satellites/config/wakewords.txt"
+	else
+		runuser -u "$SERVICE_USER" -- env \
+			SAT_VENV_DIR="$INSTALL_DIR/sat_venv" \
+			SAT_WAKEWORDS_FILE="$INSTALL_DIR/satellites/config/wakewords.txt" \
+			"$INSTALL_DIR/satellites/scripts/set_wakewords.sh" --file "$INSTALL_DIR/satellites/config/wakewords.txt"
+	fi
 fi
 
 log "Enabling + starting services"

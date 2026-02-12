@@ -65,6 +65,7 @@ Expected JSON payload:
 Notes:
 - `target` can be `branch:<name>`, `commit:<sha>`, or plain branch name.
 - Updates run through `satellites/scripts/update_satellite.sh`.
+- Updates re-apply wakewords from `satellites/config/wakewords.txt`.
 - Config and identity are preserved because they are stored outside the repo.
 
 ## Scripts
@@ -126,6 +127,7 @@ Notes:
   - Sets custom wakeword phrases and regenerates tokenized keywords.
   - Example:
     - `./satellites/scripts/set_wakewords.sh "HEY CORA" "GLADOS" "SPARK"`
+    - `./satellites/scripts/set_wakewords.sh --file ./satellites/config/wakewords.txt`
 
 ## Config
 
@@ -155,6 +157,11 @@ You can override when launching:
 
 Bootstrap now preserves existing `satellites/speech/models/wakeword_keywords/keywords_raw.txt`
 and `keywords.txt` unless `--force-models` is used.
+
+Canonical wakewords file:
+- `satellites/config/wakewords.txt`
+
+Provisioning and updater flows apply this file automatically via `set_wakewords.sh`.
 
 ## Logging
 
