@@ -42,6 +42,7 @@ What it does:
 - Installs and starts:
   - `home-satellite.service`
   - `home-satellite-updater.service`
+  - `respeaker-led-off.service` (turns off XVF3800 LEDs at boot)
 
 Update configuration lives in `/etc/default/home-satellite`.
 
@@ -74,12 +75,14 @@ Notes:
   - Creates/updates the satellite virtualenv at `sat_venv`
   - Installs `satellites/sat_requirements.txt`
   - Downloads wakeword + VAD models (unless `--skip-models`)
+  - Downloads ReSpeaker XVF3800 host-control tools on Pi 64-bit (unless `--skip-respeaker-tools`)
   - Creates default config if missing
   - Args:
     - `--skip-apt`
     - `--skip-python`
     - `--skip-models`
     - `--force-models`
+    - `--skip-respeaker-tools`
     - `-h`, `--help`
 - `satellites/scripts/run_satellite.sh`
   - Launches `satellites/main.py` with a config path.
@@ -116,6 +119,9 @@ Notes:
     - `-h`, `--help`
 - `satellites/scripts/satellite_updater_daemon.py`
   - MQTT daemon that validates tokenized update messages and runs update script.
+- `satellites/scripts/respeaker_led_off.sh`
+  - Uses `xvf_host` to disable ReSpeaker XVF3800 LEDs.
+  - Intended for use by `respeaker-led-off.service`.
 
 ## Config
 

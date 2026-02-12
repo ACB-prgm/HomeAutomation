@@ -7,11 +7,14 @@ REPO_ROOT="$(cd "$SAT_DIR/.." && pwd)"
 VENV_DIR="${SAT_VENV_DIR:-$REPO_ROOT/sat_venv}"
 CONFIG_PATH="${SAT_CONFIG_PATH:-$SAT_DIR/config/satellite.json}"
 PYTHON_BIN="${PYTHON_BIN:-python3}"
+RESPEAKER_TOOLS_DIR="${SAT_RESPEAKER_TOOLS_DIR:-$SAT_DIR/tools/respeaker_xvf3800/host_control/rpi_64bit}"
+RESPEAKER_REPO_URL="${SAT_RESPEAKER_REPO_URL:-https://github.com/respeaker/reSpeaker_XVF3800_USB_4MIC_ARRAY.git}"
 
 SKIP_APT=0
 SKIP_PYTHON=0
 SKIP_MODELS=0
 FORCE_MODELS=0
+SKIP_RESPEAKER_TOOLS=0
 
 usage() {
 	cat <<EOF
@@ -28,6 +31,7 @@ Options:
   --skip-python     Skip virtualenv and pip installation
   --skip-models     Skip model downloads
   --force-models    Re-download and overwrite model assets
+  --skip-respeaker-tools  Skip ReSpeaker host-control download/install
   -h, --help        Show this help text
 EOF
 }
@@ -48,6 +52,10 @@ while [[ $# -gt 0 ]]; do
 		;;
 	--force-models)
 		FORCE_MODELS=1
+		shift
+		;;
+	--skip-respeaker-tools)
+		SKIP_RESPEAKER_TOOLS=1
 		shift
 		;;
 	-h | --help)
@@ -136,6 +144,7 @@ install_apt_deps() {
 	require_cmd apt-get
 	local packages=(
 		build-essential
+		git
 		python3-venv
 		python3-dev
 		python3-pip
@@ -223,6 +232,46 @@ install_models() {
 	popd >/dev/null
 }
 
+install_respeaker_tools() {
+	if [[ "$SKIP_RESPEAKER_TOOLS" -eq 1 ]]; then
+		log "Skipping ReSpeaker host-control install."
+		return
+	fi
+
+	if [[ "$(uname -s)" != "Linux" ]]; then
+		log "Non-Linux host detected. Skipping ReSpeaker host-control install."
+		return
+	fi
+
+	local arch
+	arch="$(uname -m)"
+	if [[ "$arch" != "aarch64" && "$arch" != "arm64" ]]; then
+		log "Host arch '$arch' is not Raspberry Pi 64-bit. Skipping ReSpeaker host-control install."
+		return
+	fi
+
+	if [[ -x "$RESPEAKER_TOOLS_DIR/xvf_host" ]]; then
+		log "ReSpeaker host-control already present at $RESPEAKER_TOOLS_DIR"
+		return
+	fi
+
+	if ! command -v git >/dev/null 2>&1; then
+		log "git not found; skipping ReSpeaker host-control install."
+		return
+	fi
+
+	local tmp_dir
+	tmp_dir="$(mktemp -d)"
+	log "Installing ReSpeaker host-control tools into $RESPEAKER_TOOLS_DIR"
+	git clone --depth 1 "$RESPEAKER_REPO_URL" "$tmp_dir/reSpeaker_XVF3800_USB_4MIC_ARRAY"
+	mkdir -p "$RESPEAKER_TOOLS_DIR"
+	cp -a \
+		"$tmp_dir/reSpeaker_XVF3800_USB_4MIC_ARRAY/host_control/rpi_64bit/." \
+		"$RESPEAKER_TOOLS_DIR/"
+	chmod +x "$RESPEAKER_TOOLS_DIR/xvf_host"
+	rm -rf "$tmp_dir"
+}
+
 ensure_default_config() {
 	if [[ -f "$CONFIG_PATH" ]]; then
 		log "Config exists: $CONFIG_PATH"
@@ -260,6 +309,7 @@ log "Starting satellite bootstrap"
 install_apt_deps
 install_python_deps
 install_models
+install_respeaker_tools
 ensure_default_config
 log "Bootstrap complete."
 log "Run the satellite with: $SAT_DIR/scripts/run_satellite.sh"

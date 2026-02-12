@@ -1,0 +1,12 @@
+[Unit]
+Description=Turn off ReSpeaker XVF3800 LEDs
+After=multi-user.target
+
+[Service]
+Type=oneshot
+EnvironmentFile=-__ENV_FILE__
+ExecStart=__INSTALL_DIR__/satellites/scripts/respeaker_led_off.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
