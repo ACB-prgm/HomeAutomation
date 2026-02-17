@@ -130,6 +130,9 @@ class _XvfHostBackend:
 		packed = int(color, 16)
 		self._run("LED_COLOR", str(packed))
 
+	def set_led_brightness(self, brightness: int) -> None:
+		self._run("LED_BRIGHTNESS", str(max(0, min(int(brightness), 255))))
+
 	def configure_audio_route(self, channel_strategy: str) -> None:
 		# Keep ASR processing enabled for voice pipeline output.
 		self._run("AEC_ASROUTONOFF", "1")
@@ -219,6 +222,10 @@ class ReSpeakerXVF3800Control:
 		if not self._impl:
 			return
 		self._impl.set_led_effect(effect)
+		try:
+			self._impl.set_led_brightness(255)
+		except Exception as exc:
+			self.logger.debug("Unable to set LED brightness: %s", exc)
 		try:
 			self._impl.set_led_color(color_hex)
 		except Exception as exc:

@@ -37,8 +37,8 @@
     "open_consecutive_polls": 2,
     "close_consecutive_polls": 5,
     "led_enabled": true,
-    "led_listening_effect": 1,
-    "led_listening_color": "#00AEEF",
+    "led_listening_effect": 3,
+    "led_listening_color": "#00FF00",
     "led_idle_effect": "off",
     "channel_strategy": "left_processed"
   },

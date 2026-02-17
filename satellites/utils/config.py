@@ -98,8 +98,8 @@ class ReSpeakerSettings:
 	open_consecutive_polls: int = 2
 	close_consecutive_polls: int = 5
 	led_enabled: bool = True
-	led_listening_effect: int = 1
-	led_listening_color: str = "#00AEEF"
+	led_listening_effect: int = 3
+	led_listening_color: str = "#00FF00"
 	led_idle_effect: str = "off"
 	channel_strategy: str = "left_processed"
 
