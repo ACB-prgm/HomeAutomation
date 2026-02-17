@@ -117,8 +117,11 @@ class _XvfHostBackend:
 		return int(round(math.degrees(values[0])))
 
 	def set_led_off(self) -> None:
-		# Legacy fallback command used in existing LED-off script.
-		self._try_variants([["LED_EFFECT", "0"], ["GPO_WRITE_VALUE", "33", "0"]])
+		self._run("LED_EFFECT", "0")
+		self.set_led_power(False)
+
+	def set_led_power(self, enabled: bool) -> None:
+		self._run("GPO_WRITE_VALUE", "33", "1" if enabled else "0")
 
 	def set_led_effect(self, effect: int) -> None:
 		self._run("LED_EFFECT", str(int(effect)))
@@ -216,11 +219,15 @@ class ReSpeakerXVF3800Control:
 	def set_led_idle(self, effect: int = 0) -> None:
 		if not self._impl:
 			return
+		if hasattr(self._impl, "set_led_power"):
+			self._impl.set_led_power(True)
 		self._impl.set_led_effect(effect)
 
 	def set_led_listening(self, effect: int = 1, color_hex: str = "#00AEEF") -> None:
 		if not self._impl:
 			return
+		if hasattr(self._impl, "set_led_power"):
+			self._impl.set_led_power(True)
 		self._impl.set_led_effect(effect)
 		try:
 			self._impl.set_led_brightness(255)
