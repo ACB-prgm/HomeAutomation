@@ -310,8 +310,8 @@ payload = {
         "control_backend": "pyusb",
         "poll_interval_ms": 50,
         "gate_mode": "hybrid",
-        "speech_energy_high": 0.45,
-        "speech_energy_low": 0.25,
+        "speech_energy_high": 50000.0,
+        "speech_energy_low": 5000.0,
         "open_consecutive_polls": 2,
         "close_consecutive_polls": 5,
         "led_enabled": True,
@@ -334,6 +334,10 @@ install_apt_deps
 install_python_deps
 install_models
 install_respeaker_tools
+if [[ "${EUID:-$(id -u)}" -eq 0 ]] && [[ -x "$SAT_DIR/scripts/install_respeaker_udev.sh" ]]; then
+	log "Ensuring ReSpeaker udev permissions"
+	"$SAT_DIR/scripts/install_respeaker_udev.sh" || log "ReSpeaker udev step failed; continuing."
+fi
 ensure_default_config
 if [[ -x "$SAT_DIR/scripts/respeaker_configure.sh" ]]; then
 	log "Applying ReSpeaker configuration"

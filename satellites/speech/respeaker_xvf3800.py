@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import math
 import os
 import re
 import subprocess
@@ -29,6 +30,24 @@ def _parse_first_number(raw: str) -> Optional[float]:
 		return None
 
 
+def _parse_numbers(raw: str) -> list[float]:
+	values: list[float] = []
+	for token in re.findall(r"[-+]?\d*\.?\d+(?:[eE][-+]?\d+)?", raw):
+		try:
+			values.append(float(token))
+		except ValueError:
+			continue
+	return values
+
+
+def _extract_command_line(raw: str, command: str) -> str:
+	lines = [ln.strip() for ln in raw.splitlines() if ln.strip()]
+	for line in reversed(lines):
+		if line.startswith(command):
+			return line
+	return lines[-1] if lines else raw.strip()
+
+
 class _XvfHostBackend:
 	def __init__(self, tools_dir: Optional[str | Path] = None):
 		base = Path(tools_dir).expanduser().resolve() if tools_dir else _default_tools_dir().resolve()
@@ -37,9 +56,6 @@ class _XvfHostBackend:
 			raise FileNotFoundError(f"xvf_host not found at {self._xvf_host}")
 		if not os_access_exec(self._xvf_host):
 			raise PermissionError(f"xvf_host is not executable: {self._xvf_host}")
-
-		self._energy_cmd: Optional[str] = None
-		self._doa_cmd: Optional[str] = None
 
 	def _run(self, *args: str, timeout_s: float = 0.8) -> str:
 		proc = subprocess.run(
@@ -54,32 +70,6 @@ class _XvfHostBackend:
 			raise RuntimeError(err or f"xvf_host exited with code {proc.returncode}")
 		return (proc.stdout or "").strip()
 
-	def _read_number_with_candidates(
-		self,
-		cache_attr: str,
-		candidates: list[str],
-	) -> float:
-		cmd = getattr(self, cache_attr)
-		if cmd:
-			out = self._run(cmd)
-			val = _parse_first_number(out)
-			if val is not None:
-				return val
-			setattr(self, cache_attr, None)
-
-		for candidate in candidates:
-			try:
-				out = self._run(candidate)
-				val = _parse_first_number(out)
-				if val is None:
-					continue
-				setattr(self, cache_attr, candidate)
-				return val
-			except Exception:
-				continue
-
-		raise RuntimeError(f"No supported command found among: {candidates}")
-
 	def _try_variants(self, variants: list[list[str]]) -> bool:
 		for argv in variants:
 			try:
@@ -89,27 +79,42 @@ class _XvfHostBackend:
 				continue
 		return False
 
+	def _read_vector(self, command: str) -> list[float]:
+		raw = self._run(command)
+		line = _extract_command_line(raw, command)
+		payload = line[len(command) :].strip() if line.startswith(command) else line
+		values = _parse_numbers(payload)
+		if not values:
+			raise RuntimeError(f"No numeric payload for command '{command}'. Raw='{raw}'")
+		return values
+
 	def read_speech_energy(self) -> float:
-		candidates = [
-			"SPEECH_ENERGY",
-			"VOICE_ENERGY",
-			"VOICEACTIVITY",
-			"VOICE_ACTIVITY",
-			"VAD",
-		]
-		return self._read_number_with_candidates("_energy_cmd", candidates)
+		# AEC_SPENERGY_VALUES returns 4 beam energies:
+		# 0 beam1, 1 beam2, 2 free-running, 3 auto-select.
+		values = self._read_vector("AEC_SPENERGY_VALUES")
+		if len(values) >= 4:
+			return float(values[3])
+		return float(max(values))
 
 	def read_doa(self) -> Optional[int]:
-		candidates = [
-			"DOA",
-			"DOA_ANGLE",
-			"DIRECTION",
-		]
 		try:
-			val = self._read_number_with_candidates("_doa_cmd", candidates)
+			raw = self._run("AUDIO_MGR_SELECTED_AZIMUTHS")
 		except Exception:
 			return None
-		return int(round(val))
+
+		line = _extract_command_line(raw, "AUDIO_MGR_SELECTED_AZIMUTHS")
+		deg_match = re.search(r"\(([-+]?\d*\.?\d+)\s*deg\)", line)
+		if deg_match:
+			try:
+				return int(round(float(deg_match.group(1))))
+			except ValueError:
+				return None
+
+		values = _parse_numbers(line)
+		if not values:
+			return None
+		# Fallback: first value is radians.
+		return int(round(math.degrees(values[0])))
 
 	def set_led_off(self) -> None:
 		# Legacy fallback command used in existing LED-off script.
@@ -122,23 +127,22 @@ class _XvfHostBackend:
 		color = color_hex.strip().lstrip("#")
 		if len(color) != 6:
 			raise ValueError(f"Invalid hex color: {color_hex}")
-		r = int(color[0:2], 16)
-		g = int(color[2:4], 16)
-		b = int(color[4:6], 16)
-		if self._try_variants([["LED_COLOR", str(r), str(g), str(b)], ["LED_RGB", str(r), str(g), str(b)]]):
-			return
-		raise RuntimeError("No supported LED color command found")
+		packed = int(color, 16)
+		self._run("LED_COLOR", str(packed))
 
 	def configure_audio_route(self, channel_strategy: str) -> None:
-		channel = 0 if channel_strategy == "left_processed" else 1
-		variants = [
-			["AUDIO_OUTPUT_CHANNEL", str(channel)],
-			["MIC_OUTPUT_CHANNEL", str(channel)],
-			["ASR_CHANNEL_SELECT", str(channel)],
-			["HOST_AUDIO_CHANNEL", str(channel)],
-		]
-		if not self._try_variants(variants):
-			raise RuntimeError("No supported audio route command found")
+		# Keep ASR processing enabled for voice pipeline output.
+		self._run("AEC_ASROUTONOFF", "1")
+		# Keep chosen channels on auto-select beam by default.
+		self._run("AUDIO_MGR_SELECTED_CHANNELS", "3", "3")
+		# Route left output to user-chosen channel 0.
+		self._run("AUDIO_MGR_OP_L", "8", "0")
+		if channel_strategy == "right_asr":
+			# Route right output to user-chosen channel 1.
+			self._run("AUDIO_MGR_OP_R", "8", "1")
+		else:
+			# Default behavior: left is user chosen, right is residual.
+			self._run("AUDIO_MGR_OP_R", "7", "3")
 
 
 class _PyUsbBackend:
@@ -250,6 +254,10 @@ class ReSpeakerGate:
 		self.poll_interval_s = max(0.01, float(poll_interval_ms) / 1000.0)
 		self.speech_energy_high = float(speech_energy_high)
 		self.speech_energy_low = float(speech_energy_low)
+		# Backward compatibility: old configs used tiny normalized defaults.
+		if self.speech_energy_high <= 1.0 and self.speech_energy_low <= 1.0:
+			self.speech_energy_high = 50000.0
+			self.speech_energy_low = 5000.0
 		self.open_consecutive_polls = max(1, int(open_consecutive_polls))
 		self.close_consecutive_polls = max(1, int(close_consecutive_polls))
 		self.rms_threshold = max(0.0, float(rms_threshold))

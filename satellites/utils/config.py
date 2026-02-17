@@ -93,8 +93,8 @@ class ReSpeakerSettings:
 	control_backend: str = "pyusb"
 	poll_interval_ms: int = 50
 	gate_mode: str = "hybrid"
-	speech_energy_high: float = 0.45
-	speech_energy_low: float = 0.25
+	speech_energy_high: float = 50000.0
+	speech_energy_low: float = 5000.0
 	open_consecutive_polls: int = 2
 	close_consecutive_polls: int = 5
 	led_enabled: bool = True

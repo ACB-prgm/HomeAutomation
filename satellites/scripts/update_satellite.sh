@@ -157,6 +157,11 @@ fi
 
 ROLLBACK_NEEDED=1
 
+if [[ "${EUID:-$(id -u)}" -eq 0 ]] && [[ -x "$GIT_DIR/satellites/scripts/install_respeaker_udev.sh" ]]; then
+	log "Ensuring ReSpeaker udev permissions"
+	run_cmd "$GIT_DIR/satellites/scripts/install_respeaker_udev.sh"
+fi
+
 log "Running bootstrap (skip apt)"
 run_as_service_user env \
 	SAT_CONFIG_PATH="$CONFIG_PATH" \

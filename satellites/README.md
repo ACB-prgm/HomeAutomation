@@ -128,6 +128,9 @@ Notes:
 - `satellites/scripts/respeaker_configure.sh`
   - Applies ReSpeaker channel route and idle LED policy from `satellite.json`.
   - Uses configured backend with fallback to `xvf_host`.
+- `satellites/scripts/install_respeaker_udev.sh`
+  - Installs udev rule for ReSpeaker XVF3800 USB permissions (VID:PID `2886:001a`).
+  - Called by provisioning/update/bootstrap when running as root.
 - `satellites/scripts/set_wakewords.sh`
   - Sets custom wakeword phrases and regenerates tokenized keywords.
   - Example:
@@ -170,6 +173,7 @@ You can override when launching:
 - `poll_interval_ms` (default `50`)
 - `gate_mode` (`rms`, `xvf`, `hybrid`; default `hybrid`)
 - `speech_energy_high` / `speech_energy_low` (Schmitt trigger thresholds)
+  - XVF units are device speech-energy values (not normalized 0..1). Default `50000/5000`.
 - `open_consecutive_polls` / `close_consecutive_polls` (hysteresis confirmation)
 - `led_enabled` (default `true`)
 - `led_listening_effect`, `led_listening_color`, `led_idle_effect`

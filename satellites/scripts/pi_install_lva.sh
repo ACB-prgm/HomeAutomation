@@ -223,6 +223,9 @@ chmod 644 \
 log "Ensuring runtime permissions for service user"
 chown -R "$SERVICE_USER":"$SERVICE_USER" "$INSTALL_DIR"
 
+log "Installing ReSpeaker udev permissions"
+"$INSTALL_DIR/satellites/scripts/install_respeaker_udev.sh"
+
 log "Bootstrapping satellite runtime (without apt)"
 if command -v sudo >/dev/null 2>&1; then
 	sudo -u "$SERVICE_USER" env \
