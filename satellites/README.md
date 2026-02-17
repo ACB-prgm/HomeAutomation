@@ -169,7 +169,7 @@ You can override when launching:
 
 `respeaker` settings control hardware-first gating and LEDs:
 - `enabled` (default `true`)
-- `control_backend` (default `pyusb`, auto-falls back to `xvf_host`)
+- `control_backend` (default `xvf_host`; `pyusb` optional and falls back to `xvf_host`)
 - `poll_interval_ms` (default `50`)
 - `gate_mode` (`rms`, `xvf`, `hybrid`; default `hybrid`)
 - `speech_energy_high` / `speech_energy_low` (Schmitt trigger thresholds)

@@ -307,7 +307,7 @@ payload = {
     },
     "respeaker": {
         "enabled": True,
-        "control_backend": "pyusb",
+        "control_backend": "xvf_host",
         "poll_interval_ms": 50,
         "gate_mode": "hybrid",
         "speech_energy_high": 50000.0,

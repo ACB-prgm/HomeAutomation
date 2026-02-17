@@ -90,7 +90,7 @@ class SpeechSettings:
 @dataclass(frozen=True)
 class ReSpeakerSettings:
 	enabled: bool = True
-	control_backend: str = "pyusb"
+	control_backend: str = "xvf_host"
 	poll_interval_ms: int = 50
 	gate_mode: str = "hybrid"
 	speech_energy_high: float = 50000.0
