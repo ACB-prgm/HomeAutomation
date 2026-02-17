@@ -127,6 +127,7 @@ if [[ "$SKIP_APT" -eq 0 && -f /etc/debian_version ]]; then
 		curl \
 		portaudio19-dev \
 		libportaudio2 \
+		libusb-1.0-0 \
 		libsndfile1
 fi
 
@@ -250,6 +251,21 @@ if [[ -f "$INSTALL_DIR/satellites/config/wakewords.txt" ]]; then
 			SAT_WAKEWORDS_FILE="$INSTALL_DIR/satellites/config/wakewords.txt" \
 			"$INSTALL_DIR/satellites/scripts/set_wakewords.sh" --file "$INSTALL_DIR/satellites/config/wakewords.txt"
 	fi
+fi
+
+log "Applying ReSpeaker runtime configuration"
+if command -v sudo >/dev/null 2>&1; then
+	sudo -u "$SERVICE_USER" env \
+		SAT_VENV_DIR="$INSTALL_DIR/sat_venv" \
+		SAT_CONFIG_PATH="$CONFIG_PATH" \
+		SAT_RESPEAKER_TOOLS_DIR="$INSTALL_DIR/satellites/tools/respeaker_xvf3800/host_control/rpi_64bit" \
+		"$INSTALL_DIR/satellites/scripts/respeaker_configure.sh"
+else
+	runuser -u "$SERVICE_USER" -- env \
+		SAT_VENV_DIR="$INSTALL_DIR/sat_venv" \
+		SAT_CONFIG_PATH="$CONFIG_PATH" \
+		SAT_RESPEAKER_TOOLS_DIR="$INSTALL_DIR/satellites/tools/respeaker_xvf3800/host_control/rpi_64bit" \
+		"$INSTALL_DIR/satellites/scripts/respeaker_configure.sh"
 fi
 
 log "Enabling + starting services"

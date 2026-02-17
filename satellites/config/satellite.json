@@ -27,6 +27,21 @@
     "wakeword_threads": 1,
     "vad_threads": 1
   },
+  "respeaker": {
+    "enabled": true,
+    "control_backend": "pyusb",
+    "poll_interval_ms": 50,
+    "gate_mode": "hybrid",
+    "speech_energy_high": 0.45,
+    "speech_energy_low": 0.25,
+    "open_consecutive_polls": 2,
+    "close_consecutive_polls": 5,
+    "led_enabled": true,
+    "led_listening_effect": 1,
+    "led_listening_color": "#00AEEF",
+    "led_idle_effect": "off",
+    "channel_strategy": "left_processed"
+  },
   "runtime": {
     "log_level": "INFO",
     "reconnect_min_s": 1.0,

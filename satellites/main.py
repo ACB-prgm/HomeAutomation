@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import argparse
 import logging
+import os
 from pathlib import Path
 
 from speech import SpeechEngine
 from speech.audio import AudioConfig, AudioInput
+from speech.respeaker_xvf3800 import ReSpeakerGate, ReSpeakerLedController, ReSpeakerXVF3800Control
 from speech.vad import SherpaVAD
 from speech.wakeword import SherpaWakeword, WakewordConfig
 from utils import IdentityManager, SatelliteController
@@ -17,12 +19,22 @@ def _build_speech_engine(config):
 	if config.vad.mode != "sherpa":
 		print(f"WARNING: vad.mode '{config.vad.mode}' is not fully wired yet. Using 'sherpa' backend.")
 
+	channel_select = 0
+	if config.respeaker.channel_strategy == "right_asr":
+		if config.audio.channels > 1:
+			channel_select = 1
+		else:
+			logging.getLogger("satellite.main").warning(
+				"respeaker.channel_strategy='right_asr' requested, but audio.channels <= 1. Using left channel."
+			)
+
 	audio_in = AudioInput(
 		AudioConfig(
 			channels=config.audio.channels,
 			block_size=config.audio.block_size,
 			sample_rate=config.audio.sample_rate,
 			device=config.audio.input_device,
+			channel_select=channel_select,
 		)
 	)
 
@@ -42,6 +54,55 @@ def _build_speech_engine(config):
 		)
 	)
 
+	control = None
+	if config.respeaker.enabled:
+		try:
+			control = ReSpeakerXVF3800Control(
+				backend=config.respeaker.control_backend,
+				tools_dir=os.environ.get("SAT_RESPEAKER_TOOLS_DIR"),
+			)
+			if control.available:
+				control.configure_audio_route(config.respeaker.channel_strategy)
+		except Exception as exc:
+			logging.getLogger("satellite.main").warning("ReSpeaker control unavailable: %s", exc)
+			control = None
+
+	gate = ReSpeakerGate(
+		control=control,
+		mode=config.respeaker.gate_mode,
+		poll_interval_ms=config.respeaker.poll_interval_ms,
+		speech_energy_high=config.respeaker.speech_energy_high,
+		speech_energy_low=config.respeaker.speech_energy_low,
+		open_consecutive_polls=config.respeaker.open_consecutive_polls,
+		close_consecutive_polls=config.respeaker.close_consecutive_polls,
+		rms_threshold=config.speech.wake_rms_gate,
+		rms_hold_frames=config.speech.wake_gate_hold_frames,
+	)
+
+	leds = ReSpeakerLedController(
+		control=control,
+		enabled=config.respeaker.led_enabled,
+		listening_effect=config.respeaker.led_listening_effect,
+		listening_color=config.respeaker.led_listening_color,
+		idle_effect=config.respeaker.led_idle_effect,
+	)
+
+	state_logger = logging.getLogger("satellite.voice_state")
+
+	def on_state(state: str) -> None:
+		leds.handle_state(state)
+		metrics = gate.metrics()
+		state_logger.info(
+			f"Speech state: {state}",
+			extra=context_extra(
+				room=config.identity.room,
+				gate_mode=str(metrics.get("gate_mode", config.respeaker.gate_mode)),
+				gate_open=metrics.get("gate_open", metrics.get("xvf_open", "-")),
+				speech_energy=metrics.get("speech_energy", "-"),
+				led_state=leds.state,
+			),
+		)
+
 	return SpeechEngine(
 		wakeword=wakeword,
 		audio_in=audio_in,
@@ -52,6 +113,8 @@ def _build_speech_engine(config):
 		input_gain=config.speech.input_gain,
 		wake_rms_gate=config.speech.wake_rms_gate,
 		wake_gate_hold_frames=config.speech.wake_gate_hold_frames,
+		gate=gate,
+		state_listener=on_state,
 	)
 
 

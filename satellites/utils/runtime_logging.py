@@ -9,6 +9,10 @@ DEFAULT_LOG_FIELDS = {
 	"session_id": "-",
 	"pipeline_run_id": "-",
 	"room": "-",
+	"gate_mode": "-",
+	"gate_open": "-",
+	"speech_energy": "-",
+	"led_state": "-",
 }
 
 
@@ -26,7 +30,9 @@ def configure_logging(level: str = "INFO") -> None:
 		format=(
 			"%(asctime)s %(levelname)s %(name)s "
 			"satellite_id=%(satellite_id)s session_id=%(session_id)s "
-			"pipeline_run_id=%(pipeline_run_id)s room=%(room)s %(message)s"
+			"pipeline_run_id=%(pipeline_run_id)s room=%(room)s "
+			"gate_mode=%(gate_mode)s gate_open=%(gate_open)s speech_energy=%(speech_energy)s led_state=%(led_state)s "
+			"%(message)s"
 		),
 		force=True,
 	)
@@ -41,6 +47,10 @@ def context_extra(
 	room: Optional[str] = None,
 	session_id: Optional[str] = None,
 	pipeline_run_id: Optional[str] = None,
+	gate_mode: Optional[str] = None,
+	gate_open: Optional[bool | str] = None,
+	speech_energy: Optional[float | str] = None,
+	led_state: Optional[str] = None,
 ) -> dict[str, str]:
 	extra = dict(DEFAULT_LOG_FIELDS)
 	if satellite_id:
@@ -51,4 +61,15 @@ def context_extra(
 		extra["session_id"] = session_id
 	if pipeline_run_id:
 		extra["pipeline_run_id"] = pipeline_run_id
+	if gate_mode:
+		extra["gate_mode"] = gate_mode
+	if gate_open is not None:
+		extra["gate_open"] = str(gate_open).lower()
+	if speech_energy is not None:
+		if isinstance(speech_energy, float):
+			extra["speech_energy"] = f"{speech_energy:.4f}"
+		else:
+			extra["speech_energy"] = str(speech_energy)
+	if led_state:
+		extra["led_state"] = led_state
 	return extra

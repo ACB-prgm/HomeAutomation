@@ -151,6 +151,7 @@ install_apt_deps() {
 		portaudio19-dev
 		libportaudio2
 		libsndfile1
+		libusb-1.0-0
 		curl
 		ca-certificates
 	)
@@ -304,6 +305,21 @@ payload = {
         "wakeword_threads": 1,
         "vad_threads": 1
     },
+    "respeaker": {
+        "enabled": True,
+        "control_backend": "pyusb",
+        "poll_interval_ms": 50,
+        "gate_mode": "hybrid",
+        "speech_energy_high": 0.45,
+        "speech_energy_low": 0.25,
+        "open_consecutive_polls": 2,
+        "close_consecutive_polls": 5,
+        "led_enabled": True,
+        "led_listening_effect": 1,
+        "led_listening_color": "#00AEEF",
+        "led_idle_effect": "off",
+        "channel_strategy": "left_processed"
+    },
     "runtime": {"log_level": "INFO", "reconnect_min_s": 1.0, "reconnect_max_s": 30.0},
 }
 with cfg.open("w", encoding="utf-8") as f:
@@ -319,5 +335,12 @@ install_python_deps
 install_models
 install_respeaker_tools
 ensure_default_config
+if [[ -x "$SAT_DIR/scripts/respeaker_configure.sh" ]]; then
+	log "Applying ReSpeaker configuration"
+	SAT_VENV_DIR="$VENV_DIR" \
+	SAT_CONFIG_PATH="$CONFIG_PATH" \
+	SAT_RESPEAKER_TOOLS_DIR="$RESPEAKER_TOOLS_DIR" \
+	"$SAT_DIR/scripts/respeaker_configure.sh" || log "ReSpeaker configure step failed; continuing."
+fi
 log "Bootstrap complete."
 log "Run the satellite with: $SAT_DIR/scripts/run_satellite.sh"

@@ -66,6 +66,7 @@ Notes:
 - `target` can be `branch:<name>`, `commit:<sha>`, or plain branch name.
 - Updates run through `satellites/scripts/update_satellite.sh`.
 - Updates re-apply wakewords from `satellites/config/wakewords.txt`.
+- Updates re-apply ReSpeaker channel/LED policy via `satellites/scripts/respeaker_configure.sh`.
 - Config and identity are preserved because they are stored outside the repo.
 
 ## Scripts
@@ -78,6 +79,7 @@ Notes:
   - Downloads wakeword + VAD models (unless `--skip-models`)
   - Downloads ReSpeaker XVF3800 host-control tools on Pi 64-bit (unless `--skip-respeaker-tools`)
   - Creates default config if missing
+  - Applies ReSpeaker channel/LED policy from config
   - Args:
     - `--skip-apt`
     - `--skip-python`
@@ -123,11 +125,18 @@ Notes:
 - `satellites/scripts/respeaker_led_off.sh`
   - Uses `xvf_host` to disable ReSpeaker XVF3800 LEDs.
   - Intended for use by `respeaker-led-off.service`.
+- `satellites/scripts/respeaker_configure.sh`
+  - Applies ReSpeaker channel route and idle LED policy from `satellite.json`.
+  - Uses configured backend with fallback to `xvf_host`.
 - `satellites/scripts/set_wakewords.sh`
   - Sets custom wakeword phrases and regenerates tokenized keywords.
   - Example:
     - `./satellites/scripts/set_wakewords.sh "HEY CORA" "GLADOS" "SPARK"`
     - `./satellites/scripts/set_wakewords.sh --file ./satellites/config/wakewords.txt`
+- `satellites/scripts/test_voice_pipeline.sh`
+  - Runs a timed validation and summarizes wake/utterance/gate/LED events with temp+CPU samples.
+  - Example:
+    - `./satellites/scripts/test_voice_pipeline.sh --duration 1200 --interval 15`
 
 ## Config
 
@@ -153,6 +162,20 @@ You can override when launching:
 - `wakeword_threads` (default `1`): ONNX threads used by wakeword model.
 - `vad_threads` (default `1`): ONNX threads used by Sherpa VAD.
 
+### ReSpeaker Runtime Tuning
+
+`respeaker` settings control hardware-first gating and LEDs:
+- `enabled` (default `true`)
+- `control_backend` (default `pyusb`, auto-falls back to `xvf_host`)
+- `poll_interval_ms` (default `50`)
+- `gate_mode` (`rms`, `xvf`, `hybrid`; default `hybrid`)
+- `speech_energy_high` / `speech_energy_low` (Schmitt trigger thresholds)
+- `open_consecutive_polls` / `close_consecutive_polls` (hysteresis confirmation)
+- `led_enabled` (default `true`)
+- `led_listening_effect`, `led_listening_color`, `led_idle_effect`
+- `channel_strategy` (`left_processed` default, `right_asr` optional A/B path)
+- `channel_strategy=right_asr` requires `audio.channels >= 2`
+
 ### Wakeword Phrases
 
 Bootstrap now preserves existing `satellites/speech/models/wakeword_keywords/keywords_raw.txt`
@@ -170,8 +193,13 @@ Runtime logs include structured fields:
 - `session_id`
 - `pipeline_run_id`
 - `room`
+- `gate_mode`
+- `gate_open`
+- `speech_energy`
+- `led_state`
 
 ## Open Validation TODOs
 
 - Validate `./satellites/scripts/list_audio_devices.sh` detects ReSpeaker XVF3800 on target Pi.
 - Set and verify `audio.input_device` / `audio.output_device` in `satellites/config/satellite.json` from discovered indices.
+- Validate `respeaker.channel_strategy` (`left_processed` vs `right_asr`) using `./satellites/scripts/test_voice_pipeline.sh`.

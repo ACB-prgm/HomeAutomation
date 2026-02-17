@@ -12,6 +12,9 @@ SAT_SERVICE="${SAT_SERVICE_NAME:-home-satellite.service}"
 SERVICE_USER="${SAT_SERVICE_USER:-pi}"
 LOCK_FILE="${SAT_UPDATE_LOCK_FILE:-/tmp/home-satellite-update.lock}"
 BRANCH_DEFAULT="${SAT_GIT_BRANCH:-codex/ai-dev}"
+CONFIG_PATH="${SAT_CONFIG_PATH:-$GIT_DIR/satellites/config/satellite.json}"
+VENV_DIR="${SAT_VENV_DIR:-$GIT_DIR/sat_venv}"
+RESPEAKER_TOOLS_DIR="${SAT_RESPEAKER_TOOLS_DIR:-$GIT_DIR/satellites/tools/respeaker_xvf3800/host_control/rpi_64bit}"
 WAKEWORDS_FILE="${SAT_WAKEWORDS_FILE:-$GIT_DIR/satellites/config/wakewords.txt}"
 UPDATE_TARGET=""
 DRY_RUN=0
@@ -155,13 +158,29 @@ fi
 ROLLBACK_NEEDED=1
 
 log "Running bootstrap (skip apt)"
-run_as_service_user "$GIT_DIR/satellites/satellite_bootstrap.sh" --skip-apt
+run_as_service_user env \
+	SAT_CONFIG_PATH="$CONFIG_PATH" \
+	SAT_VENV_DIR="$VENV_DIR" \
+	SAT_RESPEAKER_TOOLS_DIR="$RESPEAKER_TOOLS_DIR" \
+	"$GIT_DIR/satellites/satellite_bootstrap.sh" --skip-apt
 
 if [[ -f "$WAKEWORDS_FILE" ]]; then
 	log "Applying wakewords from: $WAKEWORDS_FILE"
-	run_as_service_user "$GIT_DIR/satellites/scripts/set_wakewords.sh" --file "$WAKEWORDS_FILE"
+	run_as_service_user env \
+		SAT_VENV_DIR="$VENV_DIR" \
+		SAT_WAKEWORDS_FILE="$WAKEWORDS_FILE" \
+		"$GIT_DIR/satellites/scripts/set_wakewords.sh" --file "$WAKEWORDS_FILE"
 else
 	log "No wakewords file found at $WAKEWORDS_FILE; skipping wakeword apply."
+fi
+
+if [[ -x "$GIT_DIR/satellites/scripts/respeaker_configure.sh" ]]; then
+	log "Applying ReSpeaker runtime configuration"
+	run_as_service_user env \
+		SAT_CONFIG_PATH="$CONFIG_PATH" \
+		SAT_VENV_DIR="$VENV_DIR" \
+		SAT_RESPEAKER_TOOLS_DIR="$RESPEAKER_TOOLS_DIR" \
+		"$GIT_DIR/satellites/scripts/respeaker_configure.sh"
 fi
 
 log "Starting $SAT_SERVICE"

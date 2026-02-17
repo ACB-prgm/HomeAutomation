@@ -15,7 +15,8 @@ class AudioConfig:
 	channels: int = 1
 	block_size: int = 512			# 20ms @ 16k
 	sample_rate: int = 16000
-	device: Optional[int] = None	# sounddevice device id, or None=default
+	device: Optional[int | str] = None	# sounddevice device id/name, or None=default
+	channel_select: int = 0		# which channel to use when channels > 1
 
 
 class AudioInput:
@@ -42,7 +43,8 @@ class AudioInput:
 
 			x = np.asarray(indata, dtype=np.float32)
 			if x.ndim == 2 and x.shape[1] > 1:
-				x = x[:, 0] # Make mono
+				ch_idx = min(max(int(self.cfg.channel_select), 0), x.shape[1] - 1)
+				x = x[:, ch_idx] # Select one channel and keep mono
 			else:
 				x = x.reshape(-1)
 

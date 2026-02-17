@@ -7,6 +7,9 @@ from pathlib import Path
 from typing import Any, Optional
 
 VALID_VAD_MODES = {"sherpa", "xvf", "hybrid"}
+VALID_RESPEAKER_BACKENDS = {"pyusb", "xvf_host"}
+VALID_GATE_MODES = {"rms", "xvf", "hybrid"}
+VALID_CHANNEL_STRATEGIES = {"left_processed", "right_asr"}
 
 
 def _repo_satellites_dir() -> Path:
@@ -85,6 +88,23 @@ class SpeechSettings:
 
 
 @dataclass(frozen=True)
+class ReSpeakerSettings:
+	enabled: bool = True
+	control_backend: str = "pyusb"
+	poll_interval_ms: int = 50
+	gate_mode: str = "hybrid"
+	speech_energy_high: float = 0.45
+	speech_energy_low: float = 0.25
+	open_consecutive_polls: int = 2
+	close_consecutive_polls: int = 5
+	led_enabled: bool = True
+	led_listening_effect: int = 1
+	led_listening_color: str = "#00AEEF"
+	led_idle_effect: str = "off"
+	channel_strategy: str = "left_processed"
+
+
+@dataclass(frozen=True)
 class RuntimeSettings:
 	log_level: str = "INFO"
 	reconnect_min_s: float = 1.0
@@ -97,6 +117,7 @@ class SatelliteConfig:
 	audio: AudioSettings = field(default_factory=AudioSettings)
 	vad: VadSettings = field(default_factory=VadSettings)
 	speech: SpeechSettings = field(default_factory=SpeechSettings)
+	respeaker: ReSpeakerSettings = field(default_factory=ReSpeakerSettings)
 	runtime: RuntimeSettings = field(default_factory=RuntimeSettings)
 
 	def validate(self) -> None:
@@ -131,6 +152,24 @@ class SatelliteConfig:
 			raise ValueError("speech.wakeword_threads must be > 0")
 		if self.speech.vad_threads <= 0:
 			raise ValueError("speech.vad_threads must be > 0")
+		if self.respeaker.control_backend not in VALID_RESPEAKER_BACKENDS:
+			raise ValueError(f"respeaker.control_backend must be one of {sorted(VALID_RESPEAKER_BACKENDS)}")
+		if self.respeaker.poll_interval_ms <= 0:
+			raise ValueError("respeaker.poll_interval_ms must be > 0")
+		if self.respeaker.gate_mode not in VALID_GATE_MODES:
+			raise ValueError(f"respeaker.gate_mode must be one of {sorted(VALID_GATE_MODES)}")
+		if self.respeaker.speech_energy_high < 0:
+			raise ValueError("respeaker.speech_energy_high must be >= 0")
+		if self.respeaker.speech_energy_low < 0:
+			raise ValueError("respeaker.speech_energy_low must be >= 0")
+		if self.respeaker.speech_energy_low > self.respeaker.speech_energy_high:
+			raise ValueError("respeaker.speech_energy_low must be <= respeaker.speech_energy_high")
+		if self.respeaker.open_consecutive_polls <= 0:
+			raise ValueError("respeaker.open_consecutive_polls must be > 0")
+		if self.respeaker.close_consecutive_polls <= 0:
+			raise ValueError("respeaker.close_consecutive_polls must be > 0")
+		if self.respeaker.channel_strategy not in VALID_CHANNEL_STRATEGIES:
+			raise ValueError(f"respeaker.channel_strategy must be one of {sorted(VALID_CHANNEL_STRATEGIES)}")
 
 	@classmethod
 	def from_dict(cls, data: dict[str, Any], base_dir: Optional[Path] = None) -> "SatelliteConfig":
@@ -138,6 +177,7 @@ class SatelliteConfig:
 		audio_raw = data.get("audio", {}) or {}
 		vad_raw = data.get("vad", {}) or {}
 		speech_raw = data.get("speech", {}) or {}
+		respeaker_raw = data.get("respeaker", {}) or {}
 		runtime_raw = data.get("runtime", {}) or {}
 
 		config = cls(
@@ -168,6 +208,21 @@ class SatelliteConfig:
 				wake_gate_hold_frames=int(speech_raw.get("wake_gate_hold_frames", SpeechSettings.wake_gate_hold_frames)),
 				wakeword_threads=max(1, int(speech_raw.get("wakeword_threads", SpeechSettings.wakeword_threads))),
 				vad_threads=max(1, int(speech_raw.get("vad_threads", SpeechSettings.vad_threads))),
+			),
+			respeaker=ReSpeakerSettings(
+				enabled=bool(respeaker_raw.get("enabled", ReSpeakerSettings.enabled)),
+				control_backend=str(respeaker_raw.get("control_backend", ReSpeakerSettings.control_backend)),
+				poll_interval_ms=max(1, int(respeaker_raw.get("poll_interval_ms", ReSpeakerSettings.poll_interval_ms))),
+				gate_mode=str(respeaker_raw.get("gate_mode", ReSpeakerSettings.gate_mode)),
+				speech_energy_high=float(respeaker_raw.get("speech_energy_high", ReSpeakerSettings.speech_energy_high)),
+				speech_energy_low=float(respeaker_raw.get("speech_energy_low", ReSpeakerSettings.speech_energy_low)),
+				open_consecutive_polls=max(1, int(respeaker_raw.get("open_consecutive_polls", ReSpeakerSettings.open_consecutive_polls))),
+				close_consecutive_polls=max(1, int(respeaker_raw.get("close_consecutive_polls", ReSpeakerSettings.close_consecutive_polls))),
+				led_enabled=bool(respeaker_raw.get("led_enabled", ReSpeakerSettings.led_enabled)),
+				led_listening_effect=int(respeaker_raw.get("led_listening_effect", ReSpeakerSettings.led_listening_effect)),
+				led_listening_color=str(respeaker_raw.get("led_listening_color", ReSpeakerSettings.led_listening_color)),
+				led_idle_effect=str(respeaker_raw.get("led_idle_effect", ReSpeakerSettings.led_idle_effect)),
+				channel_strategy=str(respeaker_raw.get("channel_strategy", ReSpeakerSettings.channel_strategy)),
 			),
 			runtime=RuntimeSettings(
 				log_level=str(runtime_raw.get("log_level", RuntimeSettings.log_level)),
