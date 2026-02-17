@@ -320,12 +320,18 @@ class ReSpeakerGate:
 		rms_open = self._rms_open(frame)
 		with self._lock:
 			xvf_open = bool(self._xvf_open)
+			energy_ready = self._last_energy is not None
 		if self.mode == "rms":
 			result = rms_open
 		elif self.mode == "xvf":
 			result = xvf_open if self._xvf_enabled else rms_open
 		else:
-			result = (xvf_open or rms_open) if self._xvf_enabled else rms_open
+			# Hybrid policy: use RMS only until XVF energy is available,
+			# then rely on XVF gate state.
+			if self._xvf_enabled:
+				result = xvf_open if energy_ready else rms_open
+			else:
+				result = rms_open
 		with self._lock:
 			self._last_gate_open = bool(result)
 		return result
