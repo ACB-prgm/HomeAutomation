@@ -40,6 +40,10 @@ def configure_logging(level: str = "INFO") -> None:
 	filter_installed = any(isinstance(f, _StructuredFieldFilter) for f in root.filters)
 	if not filter_installed:
 		root.addFilter(_StructuredFieldFilter())
+	for handler in root.handlers:
+		handler_filter_installed = any(isinstance(f, _StructuredFieldFilter) for f in handler.filters)
+		if not handler_filter_installed:
+			handler.addFilter(_StructuredFieldFilter())
 
 
 def context_extra(
