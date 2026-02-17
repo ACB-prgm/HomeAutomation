@@ -81,7 +81,7 @@ while [[ "$(date +%s)" -lt "$END_EPOCH" ]]; do
 		[[ -z "$TEMP_C" ]] && TEMP_C="-"
 	fi
 
-	CPU_PCT="$(ps -C python3 -o args=,%cpu= | awk '/satellites\/main\.py/ {sum+=$NF; n++} END {if (n==0) print "0.0"; else printf "%.2f", sum}')"
+	CPU_PCT="$(ps -eo args=,%cpu= | awk '/satellites\/main\.py/ {sum+=$NF; n++} END {if (n==0) print "0.0"; else printf "%.2f", sum}')"
 	printf "%s %s %s\n" "$NOW" "$TEMP_C" "$CPU_PCT" >> "$TMP_SAMPLES"
 	sleep "$INTERVAL_S"
 done
