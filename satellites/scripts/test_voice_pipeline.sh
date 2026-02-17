@@ -82,23 +82,23 @@ while [[ "$(date +%s)" -lt "$END_EPOCH" ]]; do
 	fi
 
 	CPU_PCT="$(ps -eo args=,%cpu= | awk '/satellites\/main\.py/ {sum+=$NF; n++} END {if (n==0) print "0.0"; else printf "%.2f", sum}')"
-	printf "%s %s %s\n" "$NOW" "$TEMP_C" "$CPU_PCT" >> "$TMP_SAMPLES"
+	printf "%s,%s,%s\n" "$(date +%s)" "$TEMP_C" "$CPU_PCT" >> "$TMP_SAMPLES"
 	sleep "$INTERVAL_S"
 done
 
 END_TS="$(date '+%Y-%m-%d %H:%M:%S')"
 LOGS="$(journalctl -u "$SERVICE" --since "$START_TS" --until "$END_TS" --no-pager 2>/dev/null || true)"
 
-WAKE_COUNT="$(printf "%s\n" "$LOGS" | filter_count "Wakeword detected" || true)"
-UTT_COUNT="$(printf "%s\n" "$LOGS" | filter_count "Utterance captured" || true)"
+WAKE_COUNT="$(printf "%s\n" "$LOGS" | filter_count "Wakeword detected evt=" || true)"
+UTT_COUNT="$(printf "%s\n" "$LOGS" | filter_count "Utterance captured reason=" || true)"
 STATE_WAKE_COUNT="$(printf "%s\n" "$LOGS" | filter_count "Speech state: wake_detected" || true)"
-GATE_OPEN_COUNT="$(printf "%s\n" "$LOGS" | filter_count "Wake gate transition.*gate_open=true" || true)"
-GATE_CLOSE_COUNT="$(printf "%s\n" "$LOGS" | filter_count "Wake gate transition.*gate_open=false" || true)"
+GATE_OPEN_COUNT="$(printf "%s\n" "$LOGS" | filter_count "gate_open=true.*Wake gate transition" || true)"
+GATE_CLOSE_COUNT="$(printf "%s\n" "$LOGS" | filter_count "gate_open=false.*Wake gate transition" || true)"
 LED_LISTEN_COUNT="$(printf "%s\n" "$LOGS" | filter_count "led_state=listening" || true)"
 
 SAMPLE_COUNT="$(wc -l < "$TMP_SAMPLES" | tr -d ' ')"
-TEMP_STATS="$(awk '{if ($2 != "-") {sum+=$2; n++; if (min=="" || $2<min) min=$2; if (max=="" || $2>max) max=$2}} END {if (n==0) print "- - -"; else printf "%.2f %.2f %.2f", sum/n, min, max}' "$TMP_SAMPLES")"
-CPU_STATS="$(awk '{sum+=$3; n++; if (min=="" || $3<min) min=$3; if (max=="" || $3>max) max=$3} END {if (n==0) print "0.00 0.00 0.00"; else printf "%.2f %.2f %.2f", sum/n, min, max}' "$TMP_SAMPLES")"
+TEMP_STATS="$(awk -F, '{if ($2 != "-") {sum+=$2; n++; if (min=="" || $2<min) min=$2; if (max=="" || $2>max) max=$2}} END {if (n==0) print "- - -"; else printf "%.2f %.2f %.2f", sum/n, min, max}' "$TMP_SAMPLES")"
+CPU_STATS="$(awk -F, '{sum+=$3; n++; if (min=="" || $3<min) min=$3; if (max=="" || $3>max) max=$3} END {if (n==0) print "0.00 0.00 0.00"; else printf "%.2f %.2f %.2f", sum/n, min, max}' "$TMP_SAMPLES")"
 
 TEMP_AVG="$(echo "$TEMP_STATS" | awk '{print $1}')"
 TEMP_MIN="$(echo "$TEMP_STATS" | awk '{print $2}')"
