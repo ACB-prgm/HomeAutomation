@@ -81,7 +81,12 @@ while [[ "$(date +%s)" -lt "$END_EPOCH" ]]; do
 		[[ -z "$TEMP_C" ]] && TEMP_C="-"
 	fi
 
-	CPU_PCT="$(ps -eo args=,%cpu= | awk '/satellites\/main\.py/ {sum+=$NF; n++} END {if (n==0) print "0.0"; else printf "%.2f", sum}')"
+	MAIN_PID="$(systemctl show -p MainPID --value "$SERVICE" 2>/dev/null || echo 0)"
+	if [[ -n "$MAIN_PID" && "$MAIN_PID" != "0" ]]; then
+		CPU_PCT="$(ps -p "$MAIN_PID" -o %cpu= 2>/dev/null | awk '{sum+=$1; n++} END {if (n==0) print "0.0"; else printf "%.2f", sum}')"
+	else
+		CPU_PCT="0.0"
+	fi
 	printf "%s,%s,%s\n" "$(date +%s)" "$TEMP_C" "$CPU_PCT" >> "$TMP_SAMPLES"
 	sleep "$INTERVAL_S"
 done
