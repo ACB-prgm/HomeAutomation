@@ -61,11 +61,17 @@ def _build_speech_engine(config):
 				backend=config.respeaker.control_backend,
 				tools_dir=os.environ.get("SAT_RESPEAKER_TOOLS_DIR"),
 			)
-			if control.available:
-				control.configure_audio_route(config.respeaker.channel_strategy)
 		except Exception as exc:
 			logging.getLogger("satellite.main").warning("ReSpeaker control unavailable: %s", exc)
 			control = None
+		if control is not None and control.available:
+			try:
+				control.configure_audio_route(config.respeaker.channel_strategy)
+			except Exception as exc:
+				logging.getLogger("satellite.main").warning(
+					"ReSpeaker channel route config failed; continuing with control enabled: %s",
+					exc,
+				)
 
 	gate = ReSpeakerGate(
 		control=control,
