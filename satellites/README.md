@@ -4,7 +4,7 @@ This directory contains the Raspberry Pi satellite runtime and helper scripts.
 
 ## Quick Start (Pi)
 
-1. Bootstrap dependencies, virtualenv, and model assets:
+1. Bootstrap shared dependencies, virtualenv, and model assets (custom runtime path):
 
 ```bash
 ./satellites/satellite_bootstrap.sh
@@ -16,10 +16,17 @@ This directory contains the Raspberry Pi satellite runtime and helper scripts.
 ./satellites/scripts/list_audio_devices.sh
 ```
 
-3. Run the satellite:
+3. Run the custom satellite runtime:
 
 ```bash
 ./satellites/scripts/run_satellite.sh
+```
+
+4. Run Linux Voice Assistant runtime (Phase 1B path):
+
+```bash
+./satellites/scripts/install_lva_runtime.sh --skip-apt
+./satellites/scripts/run_lva_satellite.sh
 ```
 
 ## Provisioning a New Pi (No Reflash for Updates)
@@ -30,6 +37,7 @@ Use the provisioning script once on a new Pi:
 sudo ./satellites/scripts/pi_install_lva.sh \
   --repo-url https://github.com/ACB-prgm/HomeAutomation.git \
   --branch codex/ai-dev \
+  --runtime-mode lva \
   --service-user pi \
   --update-token "<strong-shared-token>"
 ```
@@ -38,7 +46,10 @@ What it does:
 - Clones repo to `/opt/homeautomation` with sparse checkout (`satellites/` only)
 - Creates persistent config at `/etc/home-satellite/satellite.json`
 - Preserves identity at `/var/lib/satellite/identity.json`
-- Bootstraps runtime and models
+- Bootstraps shared satellite tooling and ReSpeaker setup
+- Installs selected runtime mode:
+  - `custom`: existing Python runtime in this repo
+  - `lva`: Linux Voice Assistant checkout + venv
 - Installs and starts:
   - `home-satellite.service`
   - `home-satellite-updater.service`
@@ -65,9 +76,25 @@ Expected JSON payload:
 Notes:
 - `target` can be `branch:<name>`, `commit:<sha>`, or plain branch name.
 - Updates run through `satellites/scripts/update_satellite.sh`.
-- Updates re-apply wakewords from `satellites/config/wakewords.txt`.
+- Updates re-apply wakewords from `satellites/config/wakewords.txt` when `SAT_RUNTIME_MODE=custom`.
+- Updates re-install/refresh Linux Voice Assistant when `SAT_RUNTIME_MODE=lva`.
 - Updates re-apply ReSpeaker channel/LED policy via `satellites/scripts/respeaker_configure.sh`.
 - Config and identity are preserved because they are stored outside the repo.
+
+## Home Assistant Onboarding (LVA Mode)
+
+1. Provision Pi with `--runtime-mode lva`.
+2. Confirm service is active:
+
+```bash
+sudo systemctl status home-satellite.service --no-pager
+```
+
+3. In Home Assistant:
+   - Go to `Settings -> Devices & Services -> Add Integration`.
+   - Add `ESPHome`.
+   - Enter the Pi host/IP and port `6053`.
+4. Assign the discovered satellite device to the target room/area.
 
 ## Scripts
 
@@ -101,7 +128,7 @@ Notes:
   - Prints PortAudio device list and default device indices.
   - Args: none
 - `satellites/scripts/pi_install_lva.sh`
-  - One-time Pi provisioning with sparse checkout + service installation.
+  - One-time Pi provisioning with sparse checkout + runtime mode service installation.
   - Args:
     - `--repo-url <url>`
     - `--branch <name>`
@@ -109,13 +136,48 @@ Notes:
     - `--config-path <path>`
     - `--identity-path <path>`
     - `--service-user <name>`
+    - `--runtime-mode <custom|lva>`
     - `--mqtt-broker <host>`
     - `--mqtt-port <port>`
     - `--update-token <token>`
+    - `--lva-repo-url <url>`
+    - `--lva-ref <name|sha>`
+    - `--lva-dir <path>`
+    - `--lva-venv <path>`
+    - `--lva-wake-model <name>`
     - `--skip-apt`
+    - `-h`, `--help`
+- `satellites/scripts/install_lva_runtime.sh`
+  - Installs/updates Linux Voice Assistant checkout + virtualenv.
+  - Args:
+    - `--repo-url <url>`
+    - `--ref <name|sha>`
+    - `--install-dir <path>`
+    - `--venv <path>`
+    - `--service-user <name>`
+    - `--skip-apt`
+    - `-h`, `--help`
+- `satellites/scripts/run_lva_satellite.sh`
+  - Launches Linux Voice Assistant and maps satellite config defaults (`friendly_name`, input/output devices) to CLI flags.
+  - Auto-runs `install_lva_runtime.sh --skip-apt` if the LVA runtime is missing.
+  - Args:
+    - `--config <path>`
+    - `--lva-dir <path>`
+    - `--venv <path>`
+    - `--name <value>`
+    - `--wake-model <value>`
+    - `--stop-model <value>`
+    - `--host <value>`
+    - `--port <value>`
+    - `--interface <value>`
+    - `--no-install`
+    - `--` (pass extra args to `linux_voice_assistant`)
     - `-h`, `--help`
 - `satellites/scripts/update_satellite.sh`
   - Safe update script with rollback to previous revision on failure.
+  - Applies mode-specific runtime refresh:
+    - `custom`: bootstrap + wakeword apply
+    - `lva`: bootstrap (shared deps) + LVA runtime install/update
   - Args:
     - `--target <branch:name|commit:sha>`
     - `--dry-run`
@@ -154,6 +216,7 @@ You can override when launching:
 
 ```bash
 ./satellites/scripts/run_satellite.sh --config /path/to/satellite.json
+./satellites/scripts/run_lva_satellite.sh --config /path/to/satellite.json
 ```
 
 ### Speech Runtime Tuning
@@ -162,6 +225,8 @@ You can override when launching:
 - `input_gain` (default `1.0`): leave at `1.0` for ReSpeaker unless you need amplification.
 - `wake_rms_gate` (default `0.0035`): lightweight RMS gate before wakeword decode.
 - `wake_gate_hold_frames` (default `8`): keeps wake decode open briefly after energy drops.
+- `wake_preroll_enabled` (default `true`): cache recent wake frames and replay once when gate opens.
+- `wake_preroll_ms` (default `400`): pre-roll window size for first-phoneme recovery when gate opens late.
 - `wakeword_threads` (default `1`): ONNX threads used by wakeword model.
 - `vad_threads` (default `1`): ONNX threads used by Sherpa VAD.
 
@@ -173,7 +238,8 @@ You can override when launching:
 - `poll_interval_ms` (default `50`)
 - `gate_mode` (`rms`, `xvf`, `hybrid`; default `hybrid`)
 - `speech_energy_high` / `speech_energy_low` (Schmitt trigger thresholds)
-  - XVF units are device speech-energy values (not normalized 0..1). Default `50000/5000`.
+  - XVF reports speech energy where values `> 0` indicate speech activity.
+  - Default `0.001/0.0001` (open/close hysteresis thresholds).
 - `open_consecutive_polls` / `close_consecutive_polls` (hysteresis confirmation)
 - `led_enabled` (default `true`)
 - `led_listening_effect`, `led_listening_color`, `led_idle_effect`
@@ -207,3 +273,4 @@ Runtime logs include structured fields:
 - Validate `./satellites/scripts/list_audio_devices.sh` detects ReSpeaker XVF3800 on target Pi.
 - Set and verify `audio.input_device` / `audio.output_device` in `satellites/config/satellite.json` from discovered indices.
 - Validate `respeaker.channel_strategy` (`left_processed` vs `right_asr`) using `./satellites/scripts/test_voice_pipeline.sh`.
+- Validate `SAT_RUNTIME_MODE=lva` onboarding in Home Assistant via ESPHome integration.

@@ -83,6 +83,8 @@ class SpeechSettings:
 	input_gain: float = 1.0
 	wake_rms_gate: float = 0.0035
 	wake_gate_hold_frames: int = 8
+	wake_preroll_enabled: bool = True
+	wake_preroll_ms: int = 400
 	wakeword_threads: int = 1
 	vad_threads: int = 1
 
@@ -93,8 +95,8 @@ class ReSpeakerSettings:
 	control_backend: str = "xvf_host"
 	poll_interval_ms: int = 50
 	gate_mode: str = "hybrid"
-	speech_energy_high: float = 50000.0
-	speech_energy_low: float = 5000.0
+	speech_energy_high: float = 0.001
+	speech_energy_low: float = 0.0001
 	open_consecutive_polls: int = 2
 	close_consecutive_polls: int = 5
 	led_enabled: bool = True
@@ -148,6 +150,8 @@ class SatelliteConfig:
 			raise ValueError("speech.wake_rms_gate must be >= 0")
 		if self.speech.wake_gate_hold_frames < 0:
 			raise ValueError("speech.wake_gate_hold_frames must be >= 0")
+		if self.speech.wake_preroll_ms < 0:
+			raise ValueError("speech.wake_preroll_ms must be >= 0")
 		if self.speech.wakeword_threads <= 0:
 			raise ValueError("speech.wakeword_threads must be > 0")
 		if self.speech.vad_threads <= 0:
@@ -206,6 +210,8 @@ class SatelliteConfig:
 				input_gain=float(speech_raw.get("input_gain", SpeechSettings.input_gain)),
 				wake_rms_gate=float(speech_raw.get("wake_rms_gate", SpeechSettings.wake_rms_gate)),
 				wake_gate_hold_frames=int(speech_raw.get("wake_gate_hold_frames", SpeechSettings.wake_gate_hold_frames)),
+				wake_preroll_enabled=bool(speech_raw.get("wake_preroll_enabled", SpeechSettings.wake_preroll_enabled)),
+				wake_preroll_ms=max(0, int(speech_raw.get("wake_preroll_ms", SpeechSettings.wake_preroll_ms))),
 				wakeword_threads=max(1, int(speech_raw.get("wakeword_threads", SpeechSettings.wakeword_threads))),
 				vad_threads=max(1, int(speech_raw.get("vad_threads", SpeechSettings.vad_threads))),
 			),

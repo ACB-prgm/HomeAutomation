@@ -119,6 +119,8 @@ def _build_speech_engine(config):
 		input_gain=config.speech.input_gain,
 		wake_rms_gate=config.speech.wake_rms_gate,
 		wake_gate_hold_frames=config.speech.wake_gate_hold_frames,
+		wake_preroll_enabled=config.speech.wake_preroll_enabled,
+		wake_preroll_ms=config.speech.wake_preroll_ms,
 		gate=gate,
 		state_listener=on_state,
 	)

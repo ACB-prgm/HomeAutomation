@@ -1,6 +1,7 @@
 # speech_engine.py
 from __future__ import annotations
 
+from collections import deque
 import enum
 import logging
 import time
@@ -43,6 +44,8 @@ class SpeechEngine:
 		input_gain: float = 1.0,
 		wake_rms_gate: float = 0.0035,
 		wake_gate_hold_frames: int = 8,
+		wake_preroll_enabled: bool = True,
+		wake_preroll_ms: int = 400,
 		gate: Optional[WakeGate] = None,
 		state_listener: Optional[Callable[[str], None]] = None,
 	):
@@ -52,8 +55,14 @@ class SpeechEngine:
 		self.input_gain = float(input_gain)
 		self.wake_rms_gate = float(wake_rms_gate)
 		self.wake_gate_hold_frames = max(0, int(wake_gate_hold_frames))
+		self.wake_preroll_enabled = bool(wake_preroll_enabled)
+		self.wake_preroll_ms = max(0, int(wake_preroll_ms))
+		self._wake_preroll_max_samples = int(self.sample_rate * self.wake_preroll_ms / 1000.0)
+		self._wake_preroll_frames: deque[np.ndarray] = deque()
+		self._wake_preroll_samples = 0
 		self._wake_gate_open_frames = 0
 		self._last_gate_open: Optional[bool] = None
+		self._gate_just_opened = False
 
 		self._on_wakeword: Optional[Callable[[dict], None]] = print
 		self._on_utterance_ended: Optional[Callable[[np.ndarray, str], None]] = print
@@ -99,7 +108,16 @@ class SpeechEngine:
 
 				match self._state:
 					case _State.LISTEN_WAKEWORD:
+						if self.wake_preroll_enabled:
+							self._append_preroll(frame)
 						if self._gate_is_open(frame):
+							if self.wake_preroll_enabled and self._gate_just_opened:
+								# Replay recent audio once on each gate-open transition.
+								# This recovers first phonemes clipped by late gate opening.
+								if self._replay_preroll_for_wakeword():
+									continue
+								# Current frame is already in preroll; avoid double decode.
+								continue
 							self.listen_wakeword(frame)
 					case _State.CAPTURE_UTTERANCE:
 						self.vad.accept_audio(frame)
@@ -144,6 +162,7 @@ class SpeechEngine:
 		else:
 			gate_open = self._rms_gate_is_open(frame)
 
+		self._gate_just_opened = False
 		if self._last_gate_open is None or self._last_gate_open != gate_open:
 			self.logger.info(
 				"Wake gate transition",
@@ -153,10 +172,30 @@ class SpeechEngine:
 					speech_energy=metrics.get("speech_energy", "-"),
 				),
 			)
+			if gate_open:
+				self._gate_just_opened = True
 			self._last_gate_open = gate_open
 		return gate_open
 
-	def listen_wakeword(self, frame: np.ndarray) -> None:
+	def _append_preroll(self, frame: np.ndarray) -> None:
+		if self._wake_preroll_max_samples <= 0:
+			return
+		x = np.asarray(frame, dtype=np.float32).reshape(-1).copy()
+		self._wake_preroll_frames.append(x)
+		self._wake_preroll_samples += int(x.size)
+		while self._wake_preroll_samples > self._wake_preroll_max_samples and self._wake_preroll_frames:
+			old = self._wake_preroll_frames.popleft()
+			self._wake_preroll_samples -= int(old.size)
+
+	def _replay_preroll_for_wakeword(self) -> bool:
+		if not self._wake_preroll_frames:
+			return False
+		for f in self._wake_preroll_frames:
+			if self.listen_wakeword(f):
+				return True
+		return False
+
+	def listen_wakeword(self, frame: np.ndarray) -> bool:
 		evt = self.wakeword.process(frame)
 		if evt:
 			if self.debug:
@@ -171,8 +210,10 @@ class SpeechEngine:
 			self._utt_start_t = time.time()
 			self._emit_state("wake_detected")
 			self._emit_state("capturing_utterance")
+			return True
 		else:
 			self.vad.clear()
+			return False
 
 	def capture_utterance(self) -> None:
 		timeout = (time.time() - self._utt_start_t) >= self.max_utterance_s
