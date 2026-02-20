@@ -85,8 +85,17 @@ def _build_speech_engine(config) -> tuple[SpeechEngine, ReSpeakerLedController]:
 	if config.audio.input_device is None:
 		alsa_dev = _resolve_respeaker_alsa_device()
 		if alsa_dev:
+			# XVF3800 ALSA capture presents as stereo on this Pi image.
+			# Capture both channels and down-select in ArecordInput.
+			arecord_cfg = AudioConfig(
+				channels=max(2, int(config.audio.channels)),
+				block_size=config.audio.block_size,
+				sample_rate=config.audio.sample_rate,
+				device=config.audio.input_device,
+				channel_select=channel_select,
+			)
 			LOGGER.info("Using ALSA arecord capture backend for ReSpeaker: %s", alsa_dev)
-			audio_in = ArecordInput(audio_cfg, alsa_device=alsa_dev)
+			audio_in = ArecordInput(arecord_cfg, alsa_device=alsa_dev)
 
 	vad = SherpaVAD(
 		sample_rate=config.audio.sample_rate,
