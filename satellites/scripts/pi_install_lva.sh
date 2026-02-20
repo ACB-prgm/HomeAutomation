@@ -17,6 +17,7 @@ LVA_REF="${LVA_REF:-main}"
 LVA_DIR="${LVA_DIR:-$INSTALL_DIR/linux-voice-assistant}"
 LVA_VENV_DIR="${LVA_VENV_DIR:-$LVA_DIR/.venv}"
 LVA_WAKE_MODEL="${LVA_WAKE_MODEL:-okay_nabu}"
+LVA_FRONTEND="${LVA_FRONTEND:-satellite}"
 SKIP_APT=0
 
 usage() {
@@ -42,6 +43,7 @@ Options:
   --lva-dir <path>         Linux Voice Assistant checkout dir (default: $LVA_DIR)
   --lva-venv <path>        Linux Voice Assistant venv dir (default: $LVA_VENV_DIR)
   --lva-wake-model <name>  Linux Voice Assistant wake model (default: $LVA_WAKE_MODEL)
+  --lva-frontend <mode>    satellite | lva_default (default: $LVA_FRONTEND)
   --skip-apt               Skip apt installation
   -h, --help               Show this help text
 EOF
@@ -109,6 +111,10 @@ while [[ $# -gt 0 ]]; do
 		LVA_WAKE_MODEL="$2"
 		shift 2
 		;;
+	--lva-frontend)
+		LVA_FRONTEND="$2"
+		shift 2
+		;;
 	--skip-apt)
 		SKIP_APT=1
 		shift
@@ -149,10 +155,14 @@ if [[ "$RUNTIME_MODE" != "custom" && "$RUNTIME_MODE" != "lva" ]]; then
 	echo "Invalid runtime mode: $RUNTIME_MODE (expected custom|lva)" >&2
 	exit 1
 fi
+if [[ "$LVA_FRONTEND" != "satellite" && "$LVA_FRONTEND" != "lva_default" ]]; then
+	echo "Invalid LVA frontend: $LVA_FRONTEND (expected satellite|lva_default)" >&2
+	exit 1
+fi
 
 if [[ "${EUID:-$(id -u)}" -ne 0 ]]; then
 	if command -v sudo >/dev/null 2>&1; then
-		exec sudo --preserve-env=REPO_URL,BRANCH,INSTALL_DIR,CONFIG_PATH,IDENTITY_PATH,ENV_FILE,MQTT_BROKER,MQTT_PORT,UPDATE_TOKEN,SERVICE_USER,SKIP_APT,RUNTIME_MODE,LVA_REPO_URL,LVA_REF,LVA_DIR,LVA_VENV_DIR,LVA_WAKE_MODEL "$0" "$@"
+		exec sudo --preserve-env=REPO_URL,BRANCH,INSTALL_DIR,CONFIG_PATH,IDENTITY_PATH,ENV_FILE,MQTT_BROKER,MQTT_PORT,UPDATE_TOKEN,SERVICE_USER,SKIP_APT,RUNTIME_MODE,LVA_REPO_URL,LVA_REF,LVA_DIR,LVA_VENV_DIR,LVA_WAKE_MODEL,LVA_FRONTEND "$0" "$@"
 	else
 		echo "Run as root (or install sudo)." >&2
 		exit 1
@@ -253,6 +263,7 @@ SAT_LVA_REF=$LVA_REF
 SAT_LVA_DIR=$LVA_DIR
 SAT_LVA_VENV_DIR=$LVA_VENV_DIR
 SAT_LVA_WAKE_MODEL=$LVA_WAKE_MODEL
+SAT_LVA_FRONTEND=$LVA_FRONTEND
 EOF
 chmod 600 "$ENV_FILE"
 
@@ -305,7 +316,7 @@ run_as_service_user env \
 	SAT_RESPEAKER_TOOLS_DIR="$INSTALL_DIR/satellites/tools/respeaker_xvf3800/host_control/rpi_64bit" \
 	"$INSTALL_DIR/satellites/satellite_bootstrap.sh" "${BOOTSTRAP_ARGS[@]}"
 
-if [[ "$RUNTIME_MODE" == "custom" && -f "$INSTALL_DIR/satellites/config/wakewords.txt" ]]; then
+if [[ -f "$INSTALL_DIR/satellites/config/wakewords.txt" ]] && [[ "$RUNTIME_MODE" == "custom" || "$LVA_FRONTEND" == "satellite" ]]; then
 	log "Applying wakewords from $INSTALL_DIR/satellites/config/wakewords.txt"
 	run_as_service_user env \
 		SAT_VENV_DIR="$INSTALL_DIR/sat_venv" \
@@ -321,12 +332,14 @@ if [[ "$RUNTIME_MODE" == "lva" ]]; then
 		SAT_LVA_REF="$LVA_REF" \
 		SAT_LVA_DIR="$LVA_DIR" \
 		SAT_LVA_VENV_DIR="$LVA_VENV_DIR" \
+		SAT_LVA_FRONTEND="$LVA_FRONTEND" \
 		"$INSTALL_DIR/satellites/scripts/install_lva_runtime.sh" \
 			--repo-url "$LVA_REPO_URL" \
 			--ref "$LVA_REF" \
 			--install-dir "$LVA_DIR" \
 			--venv "$LVA_VENV_DIR" \
 			--service-user "$SERVICE_USER" \
+			--frontend "$LVA_FRONTEND" \
 			--skip-apt
 fi
 

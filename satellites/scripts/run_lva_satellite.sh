@@ -16,6 +16,7 @@ STOP_WORD_MODEL="${SAT_LVA_STOP_WORD_MODEL:-}"
 HOST_OVERRIDE="${SAT_LVA_HOST:-}"
 PORT_OVERRIDE="${SAT_LVA_PORT:-}"
 NETWORK_INTERFACE="${SAT_LVA_NETWORK_INTERFACE:-}"
+FRONTEND_MODE="${SAT_LVA_FRONTEND:-satellite}"
 AUTO_INSTALL=1
 
 usage() {
@@ -34,6 +35,7 @@ Options:
   --host <value>         Override advertised host/IP
   --port <value>         Override ESPHome port
   --interface <value>    Override network interface
+  --frontend <mode>      satellite | lva_default (default: $FRONTEND_MODE)
   --no-install           Do not auto-run install_lva_runtime.sh when missing
   -h, --help             Show help
 EOF
@@ -77,6 +79,10 @@ while [[ $# -gt 0 ]]; do
 		;;
 	--interface)
 		NETWORK_INTERFACE="$2"
+		shift 2
+		;;
+	--frontend)
+		FRONTEND_MODE="$2"
 		shift 2
 		;;
 	--no-install)
@@ -138,6 +144,11 @@ if ! check_lva_install; then
 	fi
 fi
 
+if [[ "$FRONTEND_MODE" != "satellite" && "$FRONTEND_MODE" != "lva_default" ]]; then
+	echo "Invalid --frontend value '$FRONTEND_MODE' (expected satellite|lva_default)." >&2
+	exit 1
+fi
+
 ensure_pulseaudio
 
 if [[ ! -f "$CONFIG_PATH" ]]; then
@@ -179,7 +190,11 @@ if [[ -n "$SATELLITE_NAME_OVERRIDE" ]]; then
 	SATELLITE_NAME="$SATELLITE_NAME_OVERRIDE"
 fi
 
-CMD=("$LVA_PYTHON" -m linux_voice_assistant --name "$SATELLITE_NAME")
+if [[ "$FRONTEND_MODE" == "satellite" ]]; then
+	CMD=("$LVA_PYTHON" "$SAT_DIR/scripts/lva_satellite_frontend.py" --name "$SATELLITE_NAME")
+else
+	CMD=("$LVA_PYTHON" -m linux_voice_assistant --name "$SATELLITE_NAME")
+fi
 
 if [[ -n "$AUDIO_INPUT_DEVICE" ]]; then
 	CMD+=(--audio-input-device "$AUDIO_INPUT_DEVICE")

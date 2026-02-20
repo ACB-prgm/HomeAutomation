@@ -1,6 +1,6 @@
 # Satellite Implementation Plan (Raspberry Pi + ReSpeaker XVF3800 + Home Assistant)
 
-Last updated: 2026-02-17
+Last updated: 2026-02-20
 
 ## 1) Goals and Success Criteria
 
@@ -14,24 +14,32 @@ This plan is aligned to the agreed outcomes:
 
 ## 2) Final Architecture Decisions
 
-1. Primary satellite runtime: Linux Voice Assistant (LVA) on Pi.
+1. Primary runtime split on Pi:
+   - custom wakeword + VAD + utterance capture pipeline in this repo
+   - HA transport/protocol layer via ESPHome-compatible satellite server
 2. HA integration protocol: ESPHome API (via HA ESPHome integration).
-3. ReSpeaker audio processing strategy (Phase 1):
+3. Wakeword source of truth: `satellites/config/wakewords.txt` (target phrases: `CORA`, `GLADOS`, `SPARK`).
+4. ASR/intent resolution path:
+   - Pi sends captured utterance audio to HA pipeline
+   - HA runs ASR + intent/conversation resolution
+   - fallback to server-hosted model is deferred to a later phase
+5. ReSpeaker audio processing strategy (Phase 1):
    - Use XVF3800 onboard DSP (AEC/AGC/NS/beamforming/VAD) only.
    - Do not enable software echo cancel unless performance fails acceptance tests.
-4. VAD strategy:
+6. VAD strategy:
    - Use hybrid path initially: XVF3800 VAD as gate/hint + Sherpa VAD for utterance endpointing.
    - Keep runtime-selectable VAD modes: `sherpa`, `xvf`, `hybrid`.
-5. Media strategy:
+7. Media strategy:
    - Voice/TTS playback and Spotify playback use the same physical speaker output path.
    - Spotify device presence implemented via `raspotify` (librespot backend).
 
 ## 3) Why This Direction
 
 1. `wyoming-satellite` is archived and marked as replaced by Linux Voice Assistant.
-2. LVA is the maintained Linux/Pi path and connects to HA through ESPHome protocol.
-3. HA Assist Satellite capabilities (announce, start conversation, ask question) align better with ESPHome-based satellite feature direction.
-4. XVF3800 explicitly provides onboard AEC/noise suppression/VAD, so we should exploit hardware DSP before adding software AEC complexity.
+2. ESPHome satellite transport remains the HA-compatible path for discovery, area assignment, and Assist satellite actions.
+3. LVA default wakeword models do not satisfy required custom wakeword phrases, so wake/VAD front-end is owned in this repo.
+4. HA Assist Satellite capabilities (announce, start conversation, ask question) align with keeping native HA protocol transport.
+5. XVF3800 explicitly provides onboard AEC/noise suppression/VAD, so we should exploit hardware DSP before adding software AEC complexity.
 
 ## 4) Implementation Roadmap
 
@@ -76,33 +84,34 @@ Exit criteria:
 
 ### Phase 1B: LVA Integration on Pi
 
-Status: In progress. Repo-side installer/launcher/systemd artifacts are implemented; Pi and HA validation pending.
+Status: In progress. Repo-side installer/launcher/systemd artifacts are implemented; architecture pivot locked to custom wake/VAD front-end with HA transport.
 
 1. Add a wrapper service manager in this repo:
    - installer script for Pi dependencies
    - systemd unit template for Linux Voice Assistant
-2. Configure LVA launch flags:
-   - `--name <friendly_name>`
-   - explicit `--audio-input-device` and `--audio-output-device`
-   - selected wake model(s)
-3. Document HA onboarding:
+2. Keep ESPHome-compatible transport path and HA discovery on `host:6053`.
+3. Wire launch/runtime mode so custom wake/VAD front-end can drive HA pipeline transport.
+4. Document HA onboarding:
    - Add Integration -> ESPHome -> add satellite host:6053
 
 Exit criteria:
 1. Satellite appears in HA as ESPHome-backed device.
 2. Satellite entity is stable through HA restart and Pi reboot.
+3. Wakeword behavior is no longer coupled to LVA default wake models.
 
 ## Phase 2: Audio Path and VAD Pipeline
 
-1. Keep existing Sherpa modules in `/satellites/speech` and add mode adapter:
+1. Keep existing Sherpa modules in `/satellites/speech` and make them the primary wake/VAD front-end:
    - `sherpa`: current logic
    - `xvf`: hardware VAD event-driven capture
    - `hybrid`: XVF gate + Sherpa finalize
-2. Add VAD quality metrics:
+2. Integrate custom wakeword phrases from `satellites/config/wakewords.txt` into active Pi runtime path.
+3. Ensure captured utterance audio is sent to HA voice pipeline after wake/VAD endpointing.
+4. Add VAD quality metrics:
    - false start count
    - clipped start/end estimates
    - avg turn latency
-3. Validate wake/STT while playback is active using only XVF DSP first.
+5. Validate wake/STT while playback is active using only XVF DSP first.
 
 Fallback rule:
 1. If barge-in quality fails thresholds, schedule Phase 2b software AEC (disabled by default).
@@ -116,7 +125,7 @@ Exit criteria:
 1. Ensure end-to-end Assist pipeline compatibility:
    - wake/listen
    - upload stream to HA
-   - use external Wyoming ASR provided by core service (`tcp://<core-host>:10300`)
+   - HA-provided ASR + intent resolution in configured HA pipeline
    - receive TTS/announce/start_conversation outputs
 2. Validate `assist_satellite` action compatibility:
    - `announce`
@@ -130,6 +139,7 @@ Exit criteria:
 Exit criteria:
 1. 50+ sequential voice interactions without crash/stuck state.
 2. Announce and conversation actions behave correctly from HA automations.
+3. Wake -> utterance capture -> HA ASR -> HA intent flow is stable with custom wakewords.
 
 ## Phase 4: Device Settings and Control Surface
 
@@ -159,6 +169,20 @@ Exit criteria:
 Exit criteria:
 1. Satellite appears in Spotify Connect source list.
 2. HA can select and play Spotify audio to the satellite.
+
+## Phase 6: Server Model Fallback (Deferred)
+
+1. Add fallback orchestration path only after Phases 1-5 are accepted:
+   - when HA cannot resolve utterance/intent, route text to server model
+   - return fallback response back through HA/satellite response path
+2. Keep fallback policy configurable and auditable:
+   - explicit opt-in toggle
+   - structured logs for fallback decisions and outcomes
+
+Exit criteria:
+1. HA-first resolution remains default.
+2. Fallback triggers only on defined unresolved conditions.
+3. Fallback does not break native HA satellite actions.
 
 ## 5) Test Matrix (Definition of Done)
 
@@ -203,12 +227,12 @@ Exit criteria:
 
 ## 8) Immediate Next Steps
 
-1. Provision the Pi in `lva` mode with `satellites/scripts/pi_install_lva.sh --runtime-mode lva`.
-2. Confirm `home-satellite.service` starts with `satellites/scripts/run_lva_satellite.sh` and chosen wake model.
-3. Validate updater flow in `lva` mode (`update_satellite.sh` should refresh LVA runtime and restart service).
-4. Add ESPHome integration in Home Assistant and verify device discovery + room assignment.
-5. Validate reboot/restart stability (Pi reboot, HA restart) with no manual recovery.
-6. Resume Phase 2 work (gating/quality metrics) after Phase 1B acceptance is complete.
+1. Keep ESPHome/HA transport path active and validated (`home-satellite.service`, `host:6053`).
+2. Implement runtime pivot: custom wake/VAD front-end as primary trigger/capture path in Pi service mode.
+3. Ensure `satellites/config/wakewords.txt` drives active wakeword behavior in Pi runtime.
+4. Validate HA pipeline end-to-end with custom wakewords and HA ASR enabled.
+5. Validate updater flow preserves custom wakewords/front-end behavior across updates/restarts.
+6. Defer server-model fallback implementation to Phase 6.
 
 ## References
 

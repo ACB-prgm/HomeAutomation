@@ -77,6 +77,7 @@ Notes:
 - `target` can be `branch:<name>`, `commit:<sha>`, or plain branch name.
 - Updates run through `satellites/scripts/update_satellite.sh`.
 - Updates re-apply wakewords from `satellites/config/wakewords.txt` when `SAT_RUNTIME_MODE=custom`.
+- Updates also re-apply wakewords in `SAT_RUNTIME_MODE=lva` when `SAT_LVA_FRONTEND=satellite`.
 - Updates re-install/refresh Linux Voice Assistant when `SAT_RUNTIME_MODE=lva`.
 - Updates re-apply ReSpeaker channel/LED policy via `satellites/scripts/respeaker_configure.sh`.
 - Config and identity are preserved because they are stored outside the repo.
@@ -145,22 +146,26 @@ sudo systemctl status home-satellite.service --no-pager
     - `--lva-dir <path>`
     - `--lva-venv <path>`
     - `--lva-wake-model <name>`
+    - `--lva-frontend <satellite|lva_default>`
     - `--skip-apt`
     - `-h`, `--help`
 - `satellites/scripts/install_lva_runtime.sh`
   - Installs/updates Linux Voice Assistant checkout + virtualenv.
   - Installs required OS audio deps in apt mode, including `pulseaudio` and `libmpv2`.
+  - Installs satellites wake/VAD dependencies in the LVA venv when `--frontend satellite`.
   - Args:
     - `--repo-url <url>`
     - `--ref <name|sha>`
     - `--install-dir <path>`
     - `--venv <path>`
     - `--service-user <name>`
+    - `--frontend <satellite|lva_default>`
     - `--skip-apt`
     - `-h`, `--help`
 - `satellites/scripts/run_lva_satellite.sh`
   - Launches Linux Voice Assistant and maps satellite config defaults (`friendly_name`, input/output devices) to CLI flags.
   - Ensures a PulseAudio user daemon is running before starting Linux Voice Assistant.
+  - `--frontend satellite` (default) keeps HA ESPHome transport but replaces wake/VAD front-end with satellites runtime (`CORA/GLADOS/SPARK` via `wakewords.txt`).
   - Auto-runs `install_lva_runtime.sh --skip-apt` if the LVA runtime is missing.
   - Args:
     - `--config <path>`
@@ -172,9 +177,14 @@ sudo systemctl status home-satellite.service --no-pager
     - `--host <value>`
     - `--port <value>`
     - `--interface <value>`
+    - `--frontend <satellite|lva_default>`
     - `--no-install`
     - `--` (pass extra args to `linux_voice_assistant`)
     - `-h`, `--help`
+- `satellites/scripts/lva_satellite_frontend.py`
+  - Custom audio front-end adapter for LVA mode:
+    - uses satellites wakeword/VAD/utterance capture
+    - streams captured utterance audio through LVA's HA transport (`VoiceSatelliteProtocol`)
 - `satellites/scripts/update_satellite.sh`
   - Safe update script with rollback to previous revision on failure.
   - Applies mode-specific runtime refresh:

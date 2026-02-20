@@ -21,6 +21,7 @@ LVA_REPO_URL="${SAT_LVA_REPO_URL:-https://github.com/OHF-Voice/linux-voice-assis
 LVA_REF="${SAT_LVA_REF:-main}"
 LVA_DIR="${SAT_LVA_DIR:-$GIT_DIR/linux-voice-assistant}"
 LVA_VENV_DIR="${SAT_LVA_VENV_DIR:-$LVA_DIR/.venv}"
+LVA_FRONTEND="${SAT_LVA_FRONTEND:-satellite}"
 UPDATE_TARGET=""
 DRY_RUN=0
 
@@ -89,6 +90,10 @@ run_as_service_user() {
 
 if [[ "$RUNTIME_MODE" != "custom" && "$RUNTIME_MODE" != "lva" ]]; then
 	echo "Invalid SAT_RUNTIME_MODE='$RUNTIME_MODE' (expected custom|lva)." >&2
+	exit 1
+fi
+if [[ "$LVA_FRONTEND" != "satellite" && "$LVA_FRONTEND" != "lva_default" ]]; then
+	echo "Invalid SAT_LVA_FRONTEND='$LVA_FRONTEND' (expected satellite|lva_default)." >&2
 	exit 1
 fi
 
@@ -184,13 +189,13 @@ run_as_service_user env \
 	SAT_RESPEAKER_TOOLS_DIR="$RESPEAKER_TOOLS_DIR" \
 	"$GIT_DIR/satellites/satellite_bootstrap.sh" "${BOOTSTRAP_ARGS[@]}"
 
-if [[ "$RUNTIME_MODE" == "custom" && -f "$WAKEWORDS_FILE" ]]; then
+if [[ -f "$WAKEWORDS_FILE" ]] && [[ "$RUNTIME_MODE" == "custom" || "$LVA_FRONTEND" == "satellite" ]]; then
 	log "Applying wakewords from: $WAKEWORDS_FILE"
 	run_as_service_user env \
 		SAT_VENV_DIR="$VENV_DIR" \
 		SAT_WAKEWORDS_FILE="$WAKEWORDS_FILE" \
 		"$GIT_DIR/satellites/scripts/set_wakewords.sh" --file "$WAKEWORDS_FILE"
-elif [[ "$RUNTIME_MODE" == "custom" ]]; then
+elif [[ "$RUNTIME_MODE" == "custom" || "$LVA_FRONTEND" == "satellite" ]]; then
 	log "No wakewords file found at $WAKEWORDS_FILE; skipping wakeword apply."
 fi
 
@@ -202,12 +207,14 @@ if [[ "$RUNTIME_MODE" == "lva" ]] && [[ -x "$GIT_DIR/satellites/scripts/install_
 		SAT_LVA_REF="$LVA_REF" \
 		SAT_LVA_DIR="$LVA_DIR" \
 		SAT_LVA_VENV_DIR="$LVA_VENV_DIR" \
+		SAT_LVA_FRONTEND="$LVA_FRONTEND" \
 		"$GIT_DIR/satellites/scripts/install_lva_runtime.sh" \
 			--repo-url "$LVA_REPO_URL" \
 			--ref "$LVA_REF" \
 			--install-dir "$LVA_DIR" \
 			--venv "$LVA_VENV_DIR" \
 			--service-user "$SERVICE_USER" \
+			--frontend "$LVA_FRONTEND" \
 			--skip-apt
 fi
 

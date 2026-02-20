@@ -6,6 +6,7 @@ REF="${SAT_LVA_REF:-main}"
 INSTALL_DIR="${SAT_LVA_DIR:-/opt/homeautomation/linux-voice-assistant}"
 VENV_DIR="${SAT_LVA_VENV_DIR:-$INSTALL_DIR/.venv}"
 SERVICE_USER="${SAT_SERVICE_USER:-${SUDO_USER:-$USER}}"
+FRONTEND_MODE="${SAT_LVA_FRONTEND:-satellite}"
 SKIP_APT=0
 
 usage() {
@@ -20,6 +21,7 @@ Options:
   --install-dir <path>   Target checkout path (default: $INSTALL_DIR)
   --venv <path>          Python virtualenv path (default: $VENV_DIR)
   --service-user <name>  User owning runtime files (default: $SERVICE_USER)
+  --frontend <mode>      satellite | lva_default (default: $FRONTEND_MODE)
   --skip-apt             Skip apt dependency installation
   -h, --help             Show help
 EOF
@@ -45,6 +47,10 @@ while [[ $# -gt 0 ]]; do
 		;;
 	--service-user)
 		SERVICE_USER="$2"
+		shift 2
+		;;
+	--frontend)
+		FRONTEND_MODE="$2"
 		shift 2
 		;;
 	--skip-apt)
@@ -74,6 +80,11 @@ require_cmd() {
 		exit 1
 	fi
 }
+
+if [[ "$FRONTEND_MODE" != "satellite" && "$FRONTEND_MODE" != "lva_default" ]]; then
+	echo "Invalid frontend mode: $FRONTEND_MODE (expected satellite|lva_default)" >&2
+	exit 1
+fi
 
 install_apt_deps() {
 	if [[ "$SKIP_APT" -eq 1 ]]; then
@@ -130,6 +141,19 @@ install_python_deps() {
 	python3 -m venv "$VENV_DIR"
 	"$VENV_DIR/bin/python" -m pip install --upgrade pip setuptools wheel
 	"$VENV_DIR/bin/pip" install -e "$INSTALL_DIR"
+
+	if [[ "$FRONTEND_MODE" == "satellite" ]]; then
+		# Runtime needs satellites wakeword + VAD stack inside LVA venv.
+		"$VENV_DIR/bin/pip" install \
+			numpy==2.4.0 \
+			pypinyin==0.55.0 \
+			sentencepiece==0.2.1 \
+			sherpa-onnx-core==1.12.20 \
+			sherpa_onnx==1.12.20 \
+			sounddevice==0.5.3 \
+			soundfile==0.13.1 \
+			pyusb==1.3.1
+	fi
 
 	# Validate the module import so service startup failures are caught early.
 	"$VENV_DIR/bin/python" - <<'PY'
