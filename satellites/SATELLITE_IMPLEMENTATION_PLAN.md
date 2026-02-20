@@ -116,6 +116,7 @@ Exit criteria:
 1. Ensure end-to-end Assist pipeline compatibility:
    - wake/listen
    - upload stream to HA
+   - use external Wyoming ASR provided by core service (`tcp://<core-host>:10300`)
    - receive TTS/announce/start_conversation outputs
 2. Validate `assist_satellite` action compatibility:
    - `announce`

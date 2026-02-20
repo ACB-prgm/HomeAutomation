@@ -46,6 +46,7 @@ class PiperEventHandler(AsyncEventHandler):
         self._stream_voice_id: Optional[str] = None
         self._stream_text_parts: list[str] = []
         self._stream_audio_started = False
+        self._stream_last_chunk_text: str = ""
 
     async def handle_event(self, event: Event) -> bool:
         try:
@@ -85,16 +86,21 @@ class PiperEventHandler(AsyncEventHandler):
         self._stream_voice_id = self._select_voice_id(start.voice)
         self._stream_text_parts = []
         self._stream_audio_started = False
+        self._stream_last_chunk_text = ""
 
     async def _handle_synthesize_chunk(self, chunk: SynthesizeChunk) -> None:
         if self._stream_voice_id is None:
             self._stream_voice_id = self.args.voice
 
-        if self.args.no_streaming:
-            self._stream_text_parts.append(chunk.text)
+        delta_text = self._extract_chunk_delta(chunk.text)
+        if not delta_text:
             return
 
-        text = chunk.text.strip()
+        if self.args.no_streaming:
+            self._stream_text_parts.append(delta_text)
+            return
+
+        text = delta_text.strip()
         if not text:
             return
 
@@ -124,6 +130,43 @@ class PiperEventHandler(AsyncEventHandler):
         self._stream_voice_id = None
         self._stream_text_parts = []
         self._stream_audio_started = False
+        self._stream_last_chunk_text = ""
+
+    def _extract_chunk_delta(self, chunk_text: str) -> str:
+        """Handle both delta and cumulative chunk streams without double-speaking."""
+        current = chunk_text or ""
+        previous = self._stream_last_chunk_text
+        self._stream_last_chunk_text = current
+
+        if not previous:
+            return current
+
+        if current == previous:
+            return ""
+
+        if current.startswith(previous):
+            return current[len(previous) :]
+
+        # Some clients send a final "normalized" cumulative chunk that is shorter
+        # (for example, trimming trailing whitespace). This is not new text.
+        if previous.startswith(current):
+            return ""
+
+        if current.strip() == previous.strip():
+            return ""
+
+        prefix_len = 0
+        for prev_char, curr_char in zip(previous, current):
+            if prev_char != curr_char:
+                break
+            prefix_len += 1
+
+        if prefix_len > 0:
+            if len(current) <= len(previous):
+                return ""
+            return current[prefix_len:]
+
+        return current
 
     def _select_voice_id(self, voice: Optional[SynthesizeVoice]) -> str:
         voice_id: Optional[str] = None

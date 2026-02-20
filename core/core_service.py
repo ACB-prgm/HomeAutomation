@@ -1,6 +1,8 @@
+import socket
 import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path
 from typing import Optional
 from urllib.parse import urlparse, urlunparse
@@ -27,12 +29,58 @@ def _swap_localhost(url: str, new_host: str) -> str:
     )
 
 
+def _connect_uri(uri: str, timeout: float = 1.0) -> None:
+    parsed = urlparse(uri)
+    if parsed.scheme == "tcp":
+        host = parsed.hostname or "127.0.0.1"
+        if parsed.port is None:
+            raise ValueError("tcp:// uri requires a port")
+        sock = socket.create_connection((host, parsed.port), timeout=timeout)
+        sock.close()
+        return
+
+    if parsed.scheme == "unix":
+        sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        sock.settimeout(timeout)
+        try:
+            sock.connect(parsed.path)
+        finally:
+            sock.close()
+        return
+
+    raise ValueError("Only tcp:// or unix:// URIs are supported")
+
+
+def _can_connect(uri: str, timeout: float = 1.0) -> bool:
+    try:
+        _connect_uri(uri, timeout=timeout)
+        return True
+    except OSError:
+        return False
+
+
+def _wait_until_ready(uri: str, timeout: float, service_name: str) -> None:
+    deadline = time.time() + timeout
+    last_error = None
+    while time.time() < deadline:
+        try:
+            _connect_uri(uri, timeout=0.5)
+            return
+        except OSError as exc:
+            last_error = exc
+            time.sleep(0.2)
+
+    raise RuntimeError(f"{service_name} server not ready at {uri}") from last_error
+
+
 class CoreService:
     def __init__(
         self,
         voice: str = "glados_classic",
         tts_uri: str = "tcp://127.0.0.1:10200",
         tts_start_timeout: float = 5.0,
+        asr_uri: str = "tcp://127.0.0.1:10300",
+        asr_start_timeout: float = 5.0,
         llm_base_url: str = "http://127.0.0.1:11434",
         llm_model: Optional[str] = None,
         llm_auto_start: bool = True,
@@ -40,17 +88,25 @@ class CoreService:
     ):
         preferred_ip = get_preferred_ip()
         tts_uri = _swap_localhost(tts_uri, preferred_ip)
+        asr_uri = _swap_localhost(asr_uri, preferred_ip)
         llm_base_url = _swap_localhost(llm_base_url, preferred_ip)
 
         self.default_voice = voice
         self.tts_uri = tts_uri
+        self.asr_uri = asr_uri
         self.tts_client = WyomingTtsClient(tts_uri, timeout=tts_start_timeout)
         self.tts_process: Optional[subprocess.Popen] = None
+        self.asr_process: Optional[subprocess.Popen] = None
         self._owns_tts_process = False
+        self._owns_asr_process = False
         if not self.tts_client.try_connect():
             self.tts_process = self._start_tts_server(voice, tts_uri)
             self._owns_tts_process = True
             self.tts_client.wait_until_ready()
+        if not _can_connect(asr_uri, timeout=0.5):
+            self.asr_process = self._start_asr_server(asr_uri)
+            self._owns_asr_process = True
+            _wait_until_ready(asr_uri, timeout=asr_start_timeout, service_name="ASR")
         self.llm_manager = LLMManager(
             base_url=llm_base_url,
             model=llm_model,
@@ -66,6 +122,7 @@ class CoreService:
         # self.weather = Weather(user_agent=USER_AGENT)
 
         print(f"[+] TTS URI: {self.tts_uri}")
+        print(f"[+] ASR URI: {self.asr_uri}")
         print(f"[+] LLM base URL: {self.llm_manager.base_url}")
 
     def handle_query(self, query: str, debug:bool = False):
@@ -103,18 +160,27 @@ class CoreService:
         if self.tts_client is not None:
             self.tts_client.close()
 
-        if (self.tts_process is None) or (not self._owns_tts_process):
-            return
+        if (self.tts_process is not None) and self._owns_tts_process:
+            self.tts_process.terminate()
+            try:
+                self.tts_process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                self.tts_process.kill()
+                self.tts_process.wait()
 
-        self.tts_process.terminate()
-        try:
-            self.tts_process.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            self.tts_process.kill()
-            self.tts_process.wait()
+            self.tts_process = None
+            self._owns_tts_process = False
 
-        self.tts_process = None
-        self._owns_tts_process = False
+        if (self.asr_process is not None) and self._owns_asr_process:
+            self.asr_process.terminate()
+            try:
+                self.asr_process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                self.asr_process.kill()
+                self.asr_process.wait()
+
+            self.asr_process = None
+            self._owns_asr_process = False
 
     def stop_all(self) -> None:
         self.stop()
@@ -129,6 +195,18 @@ class CoreService:
                 "core.tts.tts_wyoming_server",
                 "--voice",
                 voice,
+                "--uri",
+                uri,
+                "--no-streaming",
+            ],
+        )
+
+    def _start_asr_server(self, uri: str) -> subprocess.Popen:
+        return subprocess.Popen(
+            [
+                sys.executable,
+                "-m",
+                "core.asr.asr_wyoming_server",
                 "--uri",
                 uri,
             ],
