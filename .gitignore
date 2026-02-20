@@ -1,8 +1,21 @@
+# Core files
+core/tts/configs/models.json
+
+# All model files
+*models/
+
+# Python Files
 __pycache__/
 .venv/
-ha_config/
+venv/
+sat_venv/
 *.log
-PersonalNotes.md
+Notes.md
+
+# Testing files
+test.ipynb
+test.py
+test.wav
 
 # macOS metadata files
 .DS_Store

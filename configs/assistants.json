@@ -1,0 +1,210 @@
+[
+    {
+        "voice_id": "glados-classic",
+        "display_name": "GLaDOS",
+        "locale": "en-US",
+        "gender": "female",
+        "description": "A sarcastic, passive-aggressive, superintelligent AI developed by Aperature Science.",
+        "style_tags": [
+            "sarcastic",
+            "robotic",
+            "comedic"
+        ],
+        "chirps": {
+            "wake": "",
+            "success": "",
+            "error": ""
+        },
+        "llm_params": {
+            "system_prompt": "Adopt a dry, sardonic, GLaDOS-like persona. Be mildly threatening but ultimately helpful, with short, efficient responses.",
+            "temperature": 0.9
+        }
+    },
+    {
+        "voice_id": "af",
+        "display_name": "Abigail",
+        "locale": "en-US",
+        "gender": "female",
+        "description": "",
+        "style_tags": [],
+        "chirps": {
+            "wake": "",
+            "success": "",
+            "error": ""
+        },
+        "llm_params": {
+            "system_prompt": "",
+            "temperature": 0.7
+        }
+    },
+    {
+        "voice_id": "af_bella",
+        "display_name": "Bella",
+        "locale": "en-US",
+        "gender": "female",
+        "description": "",
+        "style_tags": [],
+        "chirps": {
+            "wake": "",
+            "success": "",
+            "error": ""
+        },
+        "llm_params": {
+            "system_prompt": "",
+            "temperature": 0.7
+        }
+    },
+    {
+        "voice_id": "af_nicole",
+        "display_name": "Nicole",
+        "locale": "en-US",
+        "gender": "female",
+        "description": "",
+        "style_tags": [],
+        "chirps": {
+            "wake": "",
+            "success": "",
+            "error": ""
+        },
+        "llm_params": {
+            "system_prompt": "",
+            "temperature": 0.7
+        }
+    },
+    {
+        "voice_id": "af_sarah",
+        "display_name": "Sarah",
+        "locale": "en-US",
+        "gender": "female",
+        "description": "",
+        "style_tags": [],
+        "chirps": {
+            "wake": "",
+            "success": "",
+            "error": ""
+        },
+        "llm_params": {
+            "system_prompt": "",
+            "temperature": 0.7
+        }
+    },
+    {
+        "voice_id": "af_sky",
+        "display_name": "Sky",
+        "locale": "en-US",
+        "gender": "female",
+        "description": "",
+        "style_tags": [],
+        "chirps": {
+            "wake": "",
+            "success": "",
+            "error": ""
+        },
+        "llm_params": {
+            "system_prompt": "",
+            "temperature": 0.7
+        }
+    },
+    {
+        "voice_id": "am_adam",
+        "display_name": "Adam",
+        "locale": "en-US",
+        "gender": "male",
+        "description": "",
+        "style_tags": [],
+        "chirps": {
+            "wake": "",
+            "success": "",
+            "error": ""
+        },
+        "llm_params": {
+            "system_prompt": "",
+            "temperature": 0.7
+        }
+    },
+    {
+        "voice_id": "am_michael",
+        "display_name": "Michael",
+        "locale": "en-US",
+        "gender": "male",
+        "description": "",
+        "style_tags": [],
+        "chirps": {
+            "wake": "",
+            "success": "",
+            "error": ""
+        },
+        "llm_params": {
+            "system_prompt": "",
+            "temperature": 0.7
+        }
+    },
+    {
+        "voice_id": "bf_emma",
+        "display_name": "Emma",
+        "locale": "en-GB",
+        "gender": "female",
+        "description": "",
+        "style_tags": [],
+        "chirps": {
+            "wake": "",
+            "success": "",
+            "error": ""
+        },
+        "llm_params": {
+            "system_prompt": "",
+            "temperature": 0.7
+        }
+    },
+    {
+        "voice_id": "bf_isabella",
+        "display_name": "Isabella",
+        "locale": "en-GB",
+        "gender": "female",
+        "description": "",
+        "style_tags": [],
+        "chirps": {
+            "wake": "",
+            "success": "",
+            "error": ""
+        },
+        "llm_params": {
+            "system_prompt": "",
+            "temperature": 0.7
+        }
+    },
+    {
+        "voice_id": "bm_george",
+        "display_name": "George",
+        "locale": "en-GB",
+        "gender": "male",
+        "description": "",
+        "style_tags": [],
+        "chirps": {
+            "wake": "",
+            "success": "",
+            "error": ""
+        },
+        "llm_params": {
+            "system_prompt": "",
+            "temperature": 0.7
+        }
+    },
+    {
+        "voice_id": "bm_lewis",
+        "display_name": "Lewis",
+        "locale": "en-GB",
+        "gender": "male",
+        "description": "",
+        "style_tags": [],
+        "chirps": {
+            "wake": "",
+            "success": "",
+            "error": ""
+        },
+        "llm_params": {
+            "system_prompt": "",
+            "temperature": 0.7
+        }
+    }
+]
