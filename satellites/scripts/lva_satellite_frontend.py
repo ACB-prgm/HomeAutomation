@@ -4,6 +4,8 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import re
+import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -18,7 +20,7 @@ if str(SAT_DIR) not in sys.path:
 	sys.path.insert(0, str(SAT_DIR))
 
 # pylint: disable=wrong-import-position
-from speech.audio import AudioConfig, AudioInput
+from speech.audio import ArecordInput, AudioConfig, AudioInput
 from speech.respeaker_xvf3800 import ReSpeakerGate, ReSpeakerLedController, ReSpeakerXVF3800Control
 from speech.speech_engine import SpeechEngine
 from speech.vad import SherpaVAD
@@ -37,20 +39,54 @@ class _WakeWordEvent:
 	wake_word: str
 
 
+def _resolve_respeaker_alsa_device() -> Optional[str]:
+	"""
+	Best-effort parse of `arecord -l` for ReSpeaker XVF3800 capture card.
+	Returns ALSA device string like hw:2,0.
+	"""
+	try:
+		proc = subprocess.run(
+			["arecord", "-l"],
+			check=False,
+			capture_output=True,
+			text=True,
+			timeout=2.0,
+		)
+	except Exception:
+		return None
+	if proc.returncode != 0:
+		return None
+
+	pattern = re.compile(
+		r"^card\s+(?P<card>\d+):\s+(?P<label>[^\[]+)\[[^\]]*reSpeaker XVF3800[^\]]*\],\s+device\s+(?P<dev>\d+):",
+		re.IGNORECASE,
+	)
+	for raw in (proc.stdout or "").splitlines():
+		line = raw.strip()
+		m = pattern.search(line)
+		if m:
+			return f"hw:{m.group('card')},{m.group('dev')}"
+	return None
+
+
 def _build_speech_engine(config) -> tuple[SpeechEngine, ReSpeakerLedController]:
 	channel_select = 0
 	if config.respeaker.channel_strategy == "right_asr" and config.audio.channels > 1:
 		channel_select = 1
 
-	audio_in = AudioInput(
-		AudioConfig(
-			channels=config.audio.channels,
-			block_size=config.audio.block_size,
-			sample_rate=config.audio.sample_rate,
-			device=config.audio.input_device,
-			channel_select=channel_select,
-		)
+	audio_cfg = AudioConfig(
+		channels=config.audio.channels,
+		block_size=config.audio.block_size,
+		sample_rate=config.audio.sample_rate,
+		device=config.audio.input_device,
+		channel_select=channel_select,
 	)
+	audio_in = AudioInput(audio_cfg)
+	if config.audio.input_device is None:
+		alsa_dev = _resolve_respeaker_alsa_device()
+		if alsa_dev:
+			LOGGER.info("Using ALSA arecord capture backend for ReSpeaker: %s", alsa_dev)
+			audio_in = ArecordInput(audio_cfg, alsa_device=alsa_dev)
 
 	vad = SherpaVAD(
 		sample_rate=config.audio.sample_rate,
