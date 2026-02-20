@@ -91,9 +91,9 @@ class _XvfHostBackend:
 	def read_speech_energy(self) -> float:
 		# AEC_SPENERGY_VALUES returns 4 beam energies:
 		# 0 beam1, 1 beam2, 2 free-running, 3 auto-select.
+		# XVF docs indicate any value > 0 means speech activity. Use max
+		# across beams to avoid misses if auto-select beam lags.
 		values = self._read_vector("AEC_SPENERGY_VALUES")
-		if len(values) >= 4:
-			return float(values[3])
 		return float(max(values))
 
 	def read_doa(self) -> Optional[int]:
@@ -255,8 +255,8 @@ class ReSpeakerGate:
 		control: Optional[ReSpeakerXVF3800Control],
 		mode: str = "hybrid",
 		poll_interval_ms: int = 50,
-		speech_energy_high: float = 0.45,
-		speech_energy_low: float = 0.25,
+		speech_energy_high: float = 0.001,
+		speech_energy_low: float = 0.0001,
 		open_consecutive_polls: int = 2,
 		close_consecutive_polls: int = 5,
 		rms_threshold: float = 0.0035,
@@ -266,12 +266,8 @@ class ReSpeakerGate:
 		self.control = control
 		self.mode = mode
 		self.poll_interval_s = max(0.01, float(poll_interval_ms) / 1000.0)
-		self.speech_energy_high = float(speech_energy_high)
-		self.speech_energy_low = float(speech_energy_low)
-		# Backward compatibility: old configs used tiny normalized defaults.
-		if self.speech_energy_high <= 1.0 and self.speech_energy_low <= 1.0:
-			self.speech_energy_high = 50000.0
-			self.speech_energy_low = 5000.0
+		self.speech_energy_high = max(0.0, float(speech_energy_high))
+		self.speech_energy_low = max(0.0, float(speech_energy_low))
 		self.open_consecutive_polls = max(1, int(open_consecutive_polls))
 		self.close_consecutive_polls = max(1, int(close_consecutive_polls))
 		self.rms_threshold = max(0.0, float(rms_threshold))

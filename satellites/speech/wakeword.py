@@ -37,9 +37,9 @@ class WakewordConfig:
 	provider: str = "cpu"
 
 	# KWS tuning knobs (tradeoff: miss vs false alarm)
-	keywords_score: float = 4.0
-	keywords_threshold: float = 0.05
-	max_active_paths: int = 4
+	keywords_score: float = 2.5
+	keywords_threshold: float = 0.02
+	max_active_paths: int = 8
 	num_trailing_blanks: int = 1
 
 	# Optional decode guardrails
