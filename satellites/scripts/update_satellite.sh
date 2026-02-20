@@ -12,10 +12,15 @@ SAT_SERVICE="${SAT_SERVICE_NAME:-home-satellite.service}"
 SERVICE_USER="${SAT_SERVICE_USER:-pi}"
 LOCK_FILE="${SAT_UPDATE_LOCK_FILE:-/tmp/home-satellite-update.lock}"
 BRANCH_DEFAULT="${SAT_GIT_BRANCH:-codex/ai-dev}"
+RUNTIME_MODE="${SAT_RUNTIME_MODE:-custom}"
 CONFIG_PATH="${SAT_CONFIG_PATH:-$GIT_DIR/satellites/config/satellite.json}"
 VENV_DIR="${SAT_VENV_DIR:-$GIT_DIR/sat_venv}"
 RESPEAKER_TOOLS_DIR="${SAT_RESPEAKER_TOOLS_DIR:-$GIT_DIR/satellites/tools/respeaker_xvf3800/host_control/rpi_64bit}"
 WAKEWORDS_FILE="${SAT_WAKEWORDS_FILE:-$GIT_DIR/satellites/config/wakewords.txt}"
+LVA_REPO_URL="${SAT_LVA_REPO_URL:-https://github.com/OHF-Voice/linux-voice-assistant.git}"
+LVA_REF="${SAT_LVA_REF:-main}"
+LVA_DIR="${SAT_LVA_DIR:-$GIT_DIR/linux-voice-assistant}"
+LVA_VENV_DIR="${SAT_LVA_VENV_DIR:-$LVA_DIR/.venv}"
 UPDATE_TARGET=""
 DRY_RUN=0
 
@@ -81,6 +86,11 @@ run_as_service_user() {
 		"$@"
 	fi
 }
+
+if [[ "$RUNTIME_MODE" != "custom" && "$RUNTIME_MODE" != "lva" ]]; then
+	echo "Invalid SAT_RUNTIME_MODE='$RUNTIME_MODE' (expected custom|lva)." >&2
+	exit 1
+fi
 
 if [[ ! -d "$GIT_DIR/.git" ]]; then
 	echo "Git checkout not found: $GIT_DIR" >&2
@@ -162,21 +172,43 @@ if [[ "${EUID:-$(id -u)}" -eq 0 ]] && [[ -x "$GIT_DIR/satellites/scripts/install
 	run_cmd "$GIT_DIR/satellites/scripts/install_respeaker_udev.sh"
 fi
 
-log "Running bootstrap (skip apt)"
+BOOTSTRAP_ARGS=(--skip-apt)
+if [[ "$RUNTIME_MODE" == "lva" ]]; then
+	BOOTSTRAP_ARGS+=(--skip-models)
+fi
+
+log "Running bootstrap (${BOOTSTRAP_ARGS[*]})"
 run_as_service_user env \
 	SAT_CONFIG_PATH="$CONFIG_PATH" \
 	SAT_VENV_DIR="$VENV_DIR" \
 	SAT_RESPEAKER_TOOLS_DIR="$RESPEAKER_TOOLS_DIR" \
-	"$GIT_DIR/satellites/satellite_bootstrap.sh" --skip-apt
+	"$GIT_DIR/satellites/satellite_bootstrap.sh" "${BOOTSTRAP_ARGS[@]}"
 
-if [[ -f "$WAKEWORDS_FILE" ]]; then
+if [[ "$RUNTIME_MODE" == "custom" && -f "$WAKEWORDS_FILE" ]]; then
 	log "Applying wakewords from: $WAKEWORDS_FILE"
 	run_as_service_user env \
 		SAT_VENV_DIR="$VENV_DIR" \
 		SAT_WAKEWORDS_FILE="$WAKEWORDS_FILE" \
 		"$GIT_DIR/satellites/scripts/set_wakewords.sh" --file "$WAKEWORDS_FILE"
-else
+elif [[ "$RUNTIME_MODE" == "custom" ]]; then
 	log "No wakewords file found at $WAKEWORDS_FILE; skipping wakeword apply."
+fi
+
+if [[ "$RUNTIME_MODE" == "lva" ]] && [[ -x "$GIT_DIR/satellites/scripts/install_lva_runtime.sh" ]]; then
+	log "Ensuring Linux Voice Assistant runtime is installed"
+	run_as_service_user env \
+		SAT_SERVICE_USER="$SERVICE_USER" \
+		SAT_LVA_REPO_URL="$LVA_REPO_URL" \
+		SAT_LVA_REF="$LVA_REF" \
+		SAT_LVA_DIR="$LVA_DIR" \
+		SAT_LVA_VENV_DIR="$LVA_VENV_DIR" \
+		"$GIT_DIR/satellites/scripts/install_lva_runtime.sh" \
+			--repo-url "$LVA_REPO_URL" \
+			--ref "$LVA_REF" \
+			--install-dir "$LVA_DIR" \
+			--venv "$LVA_VENV_DIR" \
+			--service-user "$SERVICE_USER" \
+			--skip-apt
 fi
 
 if [[ -x "$GIT_DIR/satellites/scripts/respeaker_configure.sh" ]]; then
@@ -192,4 +224,4 @@ log "Starting $SAT_SERVICE"
 run_cmd systemctl start "$SAT_SERVICE"
 
 ROLLBACK_NEEDED=0
-log "Update successful."
+log "Update successful (runtime mode: $RUNTIME_MODE)."

@@ -149,6 +149,7 @@ sudo systemctl status home-satellite.service --no-pager
     - `-h`, `--help`
 - `satellites/scripts/install_lva_runtime.sh`
   - Installs/updates Linux Voice Assistant checkout + virtualenv.
+  - Installs required OS audio deps in apt mode, including `pulseaudio` and `libmpv2`.
   - Args:
     - `--repo-url <url>`
     - `--ref <name|sha>`
@@ -159,6 +160,7 @@ sudo systemctl status home-satellite.service --no-pager
     - `-h`, `--help`
 - `satellites/scripts/run_lva_satellite.sh`
   - Launches Linux Voice Assistant and maps satellite config defaults (`friendly_name`, input/output devices) to CLI flags.
+  - Ensures a PulseAudio user daemon is running before starting Linux Voice Assistant.
   - Auto-runs `install_lva_runtime.sh --skip-apt` if the LVA runtime is missing.
   - Args:
     - `--config <path>`

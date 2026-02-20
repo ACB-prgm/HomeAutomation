@@ -11,6 +11,12 @@ MQTT_BROKER="${MQTT_BROKER:-127.0.0.1}"
 MQTT_PORT="${MQTT_PORT:-1883}"
 UPDATE_TOKEN="${UPDATE_TOKEN:-change-me}"
 SERVICE_USER="${SERVICE_USER:-${SUDO_USER:-$USER}}"
+RUNTIME_MODE="${RUNTIME_MODE:-custom}"
+LVA_REPO_URL="${LVA_REPO_URL:-https://github.com/OHF-Voice/linux-voice-assistant.git}"
+LVA_REF="${LVA_REF:-main}"
+LVA_DIR="${LVA_DIR:-$INSTALL_DIR/linux-voice-assistant}"
+LVA_VENV_DIR="${LVA_VENV_DIR:-$LVA_DIR/.venv}"
+LVA_WAKE_MODEL="${LVA_WAKE_MODEL:-okay_nabu}"
 SKIP_APT=0
 
 usage() {
@@ -27,9 +33,15 @@ Options:
   --config-path <path>     Persistent satellite config path (default: $CONFIG_PATH)
   --identity-path <path>   Persistent identity path (default: $IDENTITY_PATH)
   --service-user <name>    User running home-satellite.service (default: $SERVICE_USER)
+  --runtime-mode <mode>    custom | lva (default: $RUNTIME_MODE)
   --mqtt-broker <host>     MQTT broker for updater daemon (default: $MQTT_BROKER)
   --mqtt-port <port>       MQTT broker port (default: $MQTT_PORT)
   --update-token <token>   Shared token for update messages (default: change-me)
+  --lva-repo-url <url>     Linux Voice Assistant git repo (default: $LVA_REPO_URL)
+  --lva-ref <name|sha>     Linux Voice Assistant git ref (default: $LVA_REF)
+  --lva-dir <path>         Linux Voice Assistant checkout dir (default: $LVA_DIR)
+  --lva-venv <path>        Linux Voice Assistant venv dir (default: $LVA_VENV_DIR)
+  --lva-wake-model <name>  Linux Voice Assistant wake model (default: $LVA_WAKE_MODEL)
   --skip-apt               Skip apt installation
   -h, --help               Show this help text
 EOF
@@ -61,6 +73,10 @@ while [[ $# -gt 0 ]]; do
 		SERVICE_USER="$2"
 		shift 2
 		;;
+	--runtime-mode)
+		RUNTIME_MODE="$2"
+		shift 2
+		;;
 	--mqtt-broker)
 		MQTT_BROKER="$2"
 		shift 2
@@ -71,6 +87,26 @@ while [[ $# -gt 0 ]]; do
 		;;
 	--update-token)
 		UPDATE_TOKEN="$2"
+		shift 2
+		;;
+	--lva-repo-url)
+		LVA_REPO_URL="$2"
+		shift 2
+		;;
+	--lva-ref)
+		LVA_REF="$2"
+		shift 2
+		;;
+	--lva-dir)
+		LVA_DIR="$2"
+		shift 2
+		;;
+	--lva-venv)
+		LVA_VENV_DIR="$2"
+		shift 2
+		;;
+	--lva-wake-model)
+		LVA_WAKE_MODEL="$2"
 		shift 2
 		;;
 	--skip-apt)
@@ -101,9 +137,22 @@ require_cmd() {
 	fi
 }
 
+run_as_service_user() {
+	if command -v sudo >/dev/null 2>&1; then
+		sudo -u "$SERVICE_USER" "$@"
+	else
+		runuser -u "$SERVICE_USER" -- "$@"
+	fi
+}
+
+if [[ "$RUNTIME_MODE" != "custom" && "$RUNTIME_MODE" != "lva" ]]; then
+	echo "Invalid runtime mode: $RUNTIME_MODE (expected custom|lva)" >&2
+	exit 1
+fi
+
 if [[ "${EUID:-$(id -u)}" -ne 0 ]]; then
 	if command -v sudo >/dev/null 2>&1; then
-		exec sudo --preserve-env=REPO_URL,BRANCH,INSTALL_DIR,CONFIG_PATH,IDENTITY_PATH,ENV_FILE,MQTT_BROKER,MQTT_PORT,UPDATE_TOKEN,SERVICE_USER,SKIP_APT "$0" "$@"
+		exec sudo --preserve-env=REPO_URL,BRANCH,INSTALL_DIR,CONFIG_PATH,IDENTITY_PATH,ENV_FILE,MQTT_BROKER,MQTT_PORT,UPDATE_TOKEN,SERVICE_USER,SKIP_APT,RUNTIME_MODE,LVA_REPO_URL,LVA_REF,LVA_DIR,LVA_VENV_DIR,LVA_WAKE_MODEL "$0" "$@"
 	else
 		echo "Run as root (or install sudo)." >&2
 		exit 1
@@ -128,7 +177,13 @@ if [[ "$SKIP_APT" -eq 0 && -f /etc/debian_version ]]; then
 		portaudio19-dev \
 		libportaudio2 \
 		libusb-1.0-0 \
-		libsndfile1
+		libsndfile1 \
+		build-essential \
+		libmpv2 \
+		libpulse0 \
+		libasound2-plugins \
+		pulseaudio \
+		pkg-config
 fi
 
 require_cmd git
@@ -182,6 +237,8 @@ SAT_VENV_DIR=$INSTALL_DIR/sat_venv
 SAT_GIT_DIR=$INSTALL_DIR
 SAT_GIT_BRANCH=$BRANCH
 SAT_SERVICE_USER=$SERVICE_USER
+SAT_RUNTIME_MODE=$RUNTIME_MODE
+SAT_SERVICE_NAME=home-satellite.service
 SAT_UPDATE_SCRIPT=$INSTALL_DIR/satellites/scripts/update_satellite.sh
 SAT_RESPEAKER_TOOLS_DIR=$INSTALL_DIR/satellites/tools/respeaker_xvf3800/host_control/rpi_64bit
 SAT_WAKEWORDS_FILE=$INSTALL_DIR/satellites/config/wakewords.txt
@@ -191,6 +248,11 @@ SAT_MQTT_PORT=$MQTT_PORT
 SAT_UPDATE_TOKEN=$UPDATE_TOKEN
 SAT_UPDATE_TOPIC=home/satellites/all/update
 SAT_UPDATE_TOPIC_PREFIX=home/satellites
+SAT_LVA_REPO_URL=$LVA_REPO_URL
+SAT_LVA_REF=$LVA_REF
+SAT_LVA_DIR=$LVA_DIR
+SAT_LVA_VENV_DIR=$LVA_VENV_DIR
+SAT_LVA_WAKE_MODEL=$LVA_WAKE_MODEL
 EOF
 chmod 600 "$ENV_FILE"
 
@@ -204,9 +266,14 @@ render_service() {
 		"$src" > "$dst"
 }
 
-log "Installing systemd units"
+RUNTIME_SERVICE_TEMPLATE="$INSTALL_DIR/satellites/systemd/home-satellite.service.tmpl"
+if [[ "$RUNTIME_MODE" == "lva" ]]; then
+	RUNTIME_SERVICE_TEMPLATE="$INSTALL_DIR/satellites/systemd/home-satellite-lva.service.tmpl"
+fi
+
+log "Installing systemd units (runtime mode: $RUNTIME_MODE)"
 render_service \
-	"$INSTALL_DIR/satellites/systemd/home-satellite.service.tmpl" \
+	"$RUNTIME_SERVICE_TEMPLATE" \
 	"/etc/systemd/system/home-satellite.service"
 render_service \
 	"$INSTALL_DIR/satellites/systemd/home-satellite-updater.service.tmpl" \
@@ -226,50 +293,49 @@ chown -R "$SERVICE_USER":"$SERVICE_USER" "$INSTALL_DIR"
 log "Installing ReSpeaker udev permissions"
 "$INSTALL_DIR/satellites/scripts/install_respeaker_udev.sh"
 
-log "Bootstrapping satellite runtime (without apt)"
-if command -v sudo >/dev/null 2>&1; then
-	sudo -u "$SERVICE_USER" env \
-		SAT_VENV_DIR="$INSTALL_DIR/sat_venv" \
-		SAT_CONFIG_PATH="$CONFIG_PATH" \
-		SAT_RESPEAKER_TOOLS_DIR="$INSTALL_DIR/satellites/tools/respeaker_xvf3800/host_control/rpi_64bit" \
-		"$INSTALL_DIR/satellites/satellite_bootstrap.sh" --skip-apt
-else
-	runuser -u "$SERVICE_USER" -- env \
-		SAT_VENV_DIR="$INSTALL_DIR/sat_venv" \
-		SAT_CONFIG_PATH="$CONFIG_PATH" \
-		SAT_RESPEAKER_TOOLS_DIR="$INSTALL_DIR/satellites/tools/respeaker_xvf3800/host_control/rpi_64bit" \
-		"$INSTALL_DIR/satellites/satellite_bootstrap.sh" --skip-apt
+BOOTSTRAP_ARGS=(--skip-apt)
+if [[ "$RUNTIME_MODE" == "lva" ]]; then
+	BOOTSTRAP_ARGS+=(--skip-models)
 fi
 
-if [[ -f "$INSTALL_DIR/satellites/config/wakewords.txt" ]]; then
+log "Bootstrapping shared satellite dependencies (${BOOTSTRAP_ARGS[*]})"
+run_as_service_user env \
+	SAT_VENV_DIR="$INSTALL_DIR/sat_venv" \
+	SAT_CONFIG_PATH="$CONFIG_PATH" \
+	SAT_RESPEAKER_TOOLS_DIR="$INSTALL_DIR/satellites/tools/respeaker_xvf3800/host_control/rpi_64bit" \
+	"$INSTALL_DIR/satellites/satellite_bootstrap.sh" "${BOOTSTRAP_ARGS[@]}"
+
+if [[ "$RUNTIME_MODE" == "custom" && -f "$INSTALL_DIR/satellites/config/wakewords.txt" ]]; then
 	log "Applying wakewords from $INSTALL_DIR/satellites/config/wakewords.txt"
-	if command -v sudo >/dev/null 2>&1; then
-		sudo -u "$SERVICE_USER" env \
-			SAT_VENV_DIR="$INSTALL_DIR/sat_venv" \
-			SAT_WAKEWORDS_FILE="$INSTALL_DIR/satellites/config/wakewords.txt" \
-			"$INSTALL_DIR/satellites/scripts/set_wakewords.sh" --file "$INSTALL_DIR/satellites/config/wakewords.txt"
-	else
-		runuser -u "$SERVICE_USER" -- env \
-			SAT_VENV_DIR="$INSTALL_DIR/sat_venv" \
-			SAT_WAKEWORDS_FILE="$INSTALL_DIR/satellites/config/wakewords.txt" \
-			"$INSTALL_DIR/satellites/scripts/set_wakewords.sh" --file "$INSTALL_DIR/satellites/config/wakewords.txt"
-	fi
+	run_as_service_user env \
+		SAT_VENV_DIR="$INSTALL_DIR/sat_venv" \
+		SAT_WAKEWORDS_FILE="$INSTALL_DIR/satellites/config/wakewords.txt" \
+		"$INSTALL_DIR/satellites/scripts/set_wakewords.sh" --file "$INSTALL_DIR/satellites/config/wakewords.txt"
+fi
+
+if [[ "$RUNTIME_MODE" == "lva" ]]; then
+	log "Installing Linux Voice Assistant runtime"
+	run_as_service_user env \
+		SAT_SERVICE_USER="$SERVICE_USER" \
+		SAT_LVA_REPO_URL="$LVA_REPO_URL" \
+		SAT_LVA_REF="$LVA_REF" \
+		SAT_LVA_DIR="$LVA_DIR" \
+		SAT_LVA_VENV_DIR="$LVA_VENV_DIR" \
+		"$INSTALL_DIR/satellites/scripts/install_lva_runtime.sh" \
+			--repo-url "$LVA_REPO_URL" \
+			--ref "$LVA_REF" \
+			--install-dir "$LVA_DIR" \
+			--venv "$LVA_VENV_DIR" \
+			--service-user "$SERVICE_USER" \
+			--skip-apt
 fi
 
 log "Applying ReSpeaker runtime configuration"
-if command -v sudo >/dev/null 2>&1; then
-	sudo -u "$SERVICE_USER" env \
-		SAT_VENV_DIR="$INSTALL_DIR/sat_venv" \
-		SAT_CONFIG_PATH="$CONFIG_PATH" \
-		SAT_RESPEAKER_TOOLS_DIR="$INSTALL_DIR/satellites/tools/respeaker_xvf3800/host_control/rpi_64bit" \
-		"$INSTALL_DIR/satellites/scripts/respeaker_configure.sh"
-else
-	runuser -u "$SERVICE_USER" -- env \
-		SAT_VENV_DIR="$INSTALL_DIR/sat_venv" \
-		SAT_CONFIG_PATH="$CONFIG_PATH" \
-		SAT_RESPEAKER_TOOLS_DIR="$INSTALL_DIR/satellites/tools/respeaker_xvf3800/host_control/rpi_64bit" \
-		"$INSTALL_DIR/satellites/scripts/respeaker_configure.sh"
-fi
+run_as_service_user env \
+	SAT_VENV_DIR="$INSTALL_DIR/sat_venv" \
+	SAT_CONFIG_PATH="$CONFIG_PATH" \
+	SAT_RESPEAKER_TOOLS_DIR="$INSTALL_DIR/satellites/tools/respeaker_xvf3800/host_control/rpi_64bit" \
+	"$INSTALL_DIR/satellites/scripts/respeaker_configure.sh"
 
 log "Enabling + starting services"
 systemctl daemon-reload
@@ -278,6 +344,7 @@ systemctl enable --now home-satellite-updater.service
 systemctl enable --now respeaker-led-off.service
 
 log "Provisioning complete."
+log "Runtime mode: $RUNTIME_MODE"
 log "Runtime status: systemctl status home-satellite.service --no-pager"
 log "Updater status: systemctl status home-satellite-updater.service --no-pager"
 log "ReSpeaker LED status: systemctl status respeaker-led-off.service --no-pager"

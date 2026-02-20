@@ -1,0 +1,20 @@
+[Unit]
+Description=Home Satellite Runtime (Linux Voice Assistant)
+After=network-online.target sound.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=__ENV_FILE__
+User=__SERVICE_USER__
+Group=__SERVICE_USER__
+SupplementaryGroups=audio
+WorkingDirectory=__INSTALL_DIR__
+ExecStart=__INSTALL_DIR__/satellites/scripts/run_lva_satellite.sh --config ${SAT_CONFIG_PATH}
+Restart=always
+RestartSec=5
+KillSignal=SIGINT
+TimeoutStopSec=20
+
+[Install]
+WantedBy=multi-user.target

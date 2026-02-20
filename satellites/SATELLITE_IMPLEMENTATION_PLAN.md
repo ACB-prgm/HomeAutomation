@@ -1,6 +1,6 @@
 # Satellite Implementation Plan (Raspberry Pi + ReSpeaker XVF3800 + Home Assistant)
 
-Last updated: 2026-02-11
+Last updated: 2026-02-17
 
 ## 1) Goals and Success Criteria
 
@@ -56,6 +56,8 @@ Exit criteria:
 
 ### Phase 1A: Provisioning + Deployment Foundation
 
+Status: Completed on 2026-02-11.
+
 1. Add a one-time Pi provisioning script:
    - sparse checkout of `satellites/` only
    - persistent config path under `/etc/home-satellite`
@@ -73,6 +75,8 @@ Exit criteria:
 3. Update command can pull/rebuild/restart without replacing config/identity.
 
 ### Phase 1B: LVA Integration on Pi
+
+Status: In progress. Repo-side installer/launcher/systemd artifacts are implemented; Pi and HA validation pending.
 
 1. Add a wrapper service manager in this repo:
    - installer script for Pi dependencies
@@ -198,13 +202,12 @@ Exit criteria:
 
 ## 8) Immediate Next Steps
 
-1. Validate provisioning flow on a new Pi with `satellites/scripts/pi_install_lva.sh`.
-2. Validate updater flow using MQTT-triggered update command.
-3. Validate launcher/bootstrap flow end-to-end on Raspberry Pi hardware (XVF3800 connected).
-4. Confirm `satellites/scripts/list_audio_devices.sh` detects the ReSpeaker XVF3800 input device and record the chosen `audio.input_device` value.
-5. Confirm selected speaker output path is detected and record `audio.output_device` value.
-6. Add first-pass VAD mode abstraction (`sherpa` default, `hybrid` scaffolded).
-7. Begin Phase 1B LVA integration and HA onboarding validation.
+1. Provision the Pi in `lva` mode with `satellites/scripts/pi_install_lva.sh --runtime-mode lva`.
+2. Confirm `home-satellite.service` starts with `satellites/scripts/run_lva_satellite.sh` and chosen wake model.
+3. Validate updater flow in `lva` mode (`update_satellite.sh` should refresh LVA runtime and restart service).
+4. Add ESPHome integration in Home Assistant and verify device discovery + room assignment.
+5. Validate reboot/restart stability (Pi reboot, HA restart) with no manual recovery.
+6. Resume Phase 2 work (gating/quality metrics) after Phase 1B acceptance is complete.
 
 ## References
 
